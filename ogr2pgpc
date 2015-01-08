@@ -177,6 +177,21 @@ def add_dimension(doc, fld, index):
     dimension.append(interpretation)
     interpretation.text = fld['type']['dest']['interpretation']
 
+    ogr_ = ETree.Element('pc:ogr')
+    dimension.append(ogr_)
+
+    # additional tags indicating that dimension is special 
+    # date, time, datetime
+    if fld['type']['origin'] in [
+        ogr.OFTDate,
+        ogr.OFTTime,
+        ogr.OFTDateTime,
+    ]:
+
+        data_type = ETree.Element('pc:datatype')
+        ogr_.append(data_type)
+        data_type.text = ogr.GetFieldTypeName(fld['type']['origin'])
+
 def build_pc_format(fields):
     XML_DECLARATION = '<?xml version="1.0" encoding="UTF-8"?>'
 
