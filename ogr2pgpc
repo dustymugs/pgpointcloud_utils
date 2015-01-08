@@ -1,0 +1,277 @@
+#!/usr/bin/python
+
+from xml.etree import ElementTree as ETree
+import psycopg2
+from osgeo import ogr, osr
+import numpy as np
+import argparse
+
+import ipdb
+
+#from .library import *
+
+DATA_TYPE_MAPPING = {
+    ogr.OFTInteger: {
+        'interpretation': 'int64_t',
+        'size': 8
+    },
+    ogr.OFTReal: {
+        'interpretation': 'double',
+        'size': 8
+    },
+    ogr.OFTDate: {
+        'interpretation': 'int64_t',
+        'size': 8
+    },
+    ogr.OFTTime: {
+        'interpretation': 'int64_t',
+        'size': 8
+    },
+    ogr.OFTDateTime: {
+        'interpretation': 'int64_t',
+        'size': 8
+    }
+}
+
+def _init_argparser():
+
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument(
+        '-g', '--group-by',
+        action='append',
+        dest='group_by',
+        help='attribute names to group by. Can be specified multiple times. If not specified, automatic grouping is done'
+    )
+    arg_parser.add_argument(
+        '-l', '--layer',
+        action='append',
+        dest='layer',
+        help='layer names to convert. Can be specified multiple times. If not specified, all layers of input file are processed'
+    )
+
+    arg_parser.add_argument(
+        '-d', '--dsn',
+        dest='dsn',
+        required=True,
+        help='database connection string'
+    )
+
+    arg_parser.add_argument(
+        '-f', '--file',
+        dest='input_file',
+        required=True,
+        help="OGR compatible file to be imported to pgPointCloud"
+    )
+
+    return arg_parser
+
+def open_input_file(f):
+
+    ogr.RegisterAll()
+
+    ds = ogr.OpenShared(f, update=False)
+
+    if ds is None:
+        raise
+
+    return ds
+
+def open_db_connection(dsn):
+    return psycopg2.connect(dsn)
+
+def interpret_fields(lyrIn, args):
+
+    def add_coordinate(data, coord):
+        fldType = ogr.OFTReal
+        data.append({
+            'index': None,
+            'name': coord,
+            'type': {
+                'source': fldType,
+                'dest': DATA_TYPE_MAPPING[fldType]
+            }
+        })
+
+
+    fields = {
+        'group_by': [],
+        'ignore': [],
+        'data': []
+    }
+
+    add_coordinate(fields['data'], 'X')
+    add_coordinate(fields['data'], 'Y')
+    add_coordinate(fields['data'], 'Z')
+
+    if args.group_by:
+        fields['group_by'] = args.group_by
+
+    if lyrIn.GetFeatureCount() < 1:
+        raise
+
+    # use the first feature
+    feat = lyrIn.GetFeature(0)
+    numFields = feat.GetFieldCount()
+
+    for idx in xrange(numFields):
+        fldDef = feat.GetFieldDefnRef(idx)
+
+        fldInfo = {
+            'index': idx,
+            'name': fldDef.GetName(), 
+        }
+
+        fldType = fldDef.GetType()
+
+        if fldType == ogr.OFTString:
+            if not args.group_by:
+                fields['group_by'].append(fldInfo)
+            else:
+                fields['ignore'].append(idx)
+        elif fldType in DATA_TYPE_MAPPING:
+            fldInfo['type'] = {
+                'source': fldType,
+                'dest': DATA_TYPE_MAPPING[fldType],
+            }
+            fields['data'].append(fldInfo)
+        else:
+            fields['ignore'].append(fldInfo)
+
+    for key, indices in fields.iteritems():
+
+        if len(indices) < 1:
+            continue
+
+        if key == 'ignore':
+            label = 'ignored'
+        elif key == 'group_by':
+            label = 'grouped'
+        else:
+            continue
+
+        print "The following fields will be %s:" % label
+
+        for fld in indices:
+            print "    %s" % fld['name']
+
+    return fields
+
+def add_dimension(doc, fld, index):
+
+    dimension = ETree.Element('pc:dimension')
+    doc.append(dimension)
+
+    position = ETree.Element('pc:position')
+    dimension.append(position)
+    position.text = str(index)
+
+    name = ETree.Element('pc:name')
+    dimension.append(name)
+    name.text = fld['name']
+
+    size = ETree.Element('pc:size')
+    dimension.append(size)
+    size.text = str(fld['type']['dest']['size'])
+
+    interpretation = ETree.Element('pc:interpretation')
+    dimension.append(interpretation)
+    interpretation.text = fld['type']['dest']['interpretation']
+
+def build_pc_format(fields):
+    XML_DECLARATION = '<?xml version="1.0" encoding="UTF-8"?>'
+
+    doc = ETree.Element('pc:PointCloudSchema')
+    doc.set('xmlns:pc', "http://pointcloud.org/schemas/PC/1.1")
+    doc.set('xmlns:xsi', "http://www.w3.org/2001/XMLSchema-instance")
+
+    num_dimensions = 1
+
+    for fld in fields['data']:
+        add_dimension(doc, fld, num_dimensions)
+        num_dimensions += 1
+
+    return XML_DECLARATION + ETree.tostring(doc)
+
+def add_pc_format(dbConn, pc_format):
+
+    while True:
+
+        cursor = dbConn.cursor()
+
+        # next best PCID
+        cursor.execute("""
+WITH foo AS (
+SELECT
+	pcid,
+	lead(pcid, 1, NULL) OVER (ORDER BY pcid DESC),
+	pcid - lead(pcid, 1, NULL) OVER (ORDER BY pcid DESC) AS dist
+FROM pointcloud_formats
+ORDER BY pcid DESC
+)
+SELECT
+	foo.pcid - 1 AS next_pcid
+FROM foo
+WHERE foo.dist > 1
+	AND (SELECT count(*) FROM pointcloud_formats AS srs WHERE srs.pcid = foo.pcid - 1) < 1
+ORDER BY foo.pcid DESC
+LIMIT 1
+        """)
+        next_pcid = cursor.fetchone()
+        if next_pcid is None:
+            next_pcid = 65535
+        else:
+            next_pcid = next_pcid[0]
+
+        cursor.execute("INSERT INTO pointcloud_formats (pcid, schema) VALUES (%s, %s)" % (
+            next_pcid,
+            pc_format
+        ))
+
+def convert_layer(lyrIn, dbConn, args):
+
+    # process fields
+    # find what to group by, what to ignore, what to process
+    fields = interpret_fields(lyrIn, args)
+
+    if not fields['data']:
+        return
+
+    # build temporary layer format
+    pc_format = build_pc_format(fields)
+
+    add_pc_format(dbConn, pc_format)
+
+def convert_file(dsIn, dbConn, args):
+
+    num_layers = dsIn.GetLayerCount()
+    if num_layers < 1:
+        return
+
+    if args.layer:
+        layers = args.layer
+    else:
+        layers = range(num_layers)
+
+    for e in layers:
+
+        if args.layer:
+            layer = dsIn.GetLayerByName(e)
+        else:
+            layer = dsIn.GetLayerByIndex(e)
+
+        if not layer:
+            raise
+
+        convert_layer(layer, dbConn, args)
+
+def run(args):
+
+    dsIn = open_input_file(args.input_file)
+    dbConn = open_db_connection(args.dsn)
+
+    convert_file(dsIn, dbConn, args)
+
+if __name__ == '__main__':
+    arg_parser = _init_argparser()
+    args = arg_parser.parse_args()
+    run(args)
