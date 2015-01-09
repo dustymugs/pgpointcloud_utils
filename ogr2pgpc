@@ -1,15 +1,67 @@
 #!/usr/bin/python
 
+import datetime
+import pytz
+
+import os
+
 import simplejson as json
 import hashlib
 from xml.etree import ElementTree as ETree
 import psycopg2
+from psycopg2.extensions import AsIs
 from osgeo import ogr, osr
 import argparse
+
+import random
 
 import ipdb
 
 #from .library import *
+
+class OGR_TZ(datetime.tzinfo):
+
+    def __init__(self, ogr_tz):
+
+        self._hours = None
+        self._minutes = None
+
+        if ogr_tz <= 1:
+            return
+
+        offset = int(ogr_tz - 100 * 15)
+        hours = int(offset / 60)
+        minutes = int(abs(offset - hours * 60))
+
+        if offset < 0:
+            self._hours = -1 * abs(hours)
+            self._minutes = -1 * minutes
+        else:
+            self._hours = hours
+            self._minutes = minutes
+
+    def utcoffset(self, dt):
+
+        if self._hours is None:
+            return None
+
+        return datetime.timedelta(hours=self._hours, minutes=self._minutes)
+
+    def tzname(self, dt):
+
+        if self._hours is None:
+            return None
+
+        sign = '-' if self._hours < 0 else '+'
+
+        return "%s%02f:%02f" % (
+            sign,
+            abs(self._hours),
+            abs(self._minutes)
+        )
+
+    def dst(self, dt):
+        return timedelta(0)
 
 DATA_TYPE_MAPPING = {
     ogr.OFTInteger: {
@@ -34,6 +86,10 @@ DATA_TYPE_MAPPING = {
     }
 }
 
+Args = None
+DSIn = None
+DBConn = None
+
 def _init_argparser():
 
     arg_parser = argparse.ArgumentParser()
@@ -41,34 +97,60 @@ def _init_argparser():
         '-g', '--group-by',
         action='append',
         dest='group_by',
-        help='attribute names to group by. Can be specified multiple times. If not specified, automatic grouping is done'
+        help="""Names of attributes to group by. Can be specified multiple 
+        times. If not specified, automatic grouping is done"""
     )
     arg_parser.add_argument(
         '-l', '--layer',
         action='append',
         dest='layer',
-        help='layer names to convert. Can be specified multiple times. If not specified, all layers of input file are processed'
+        help="""Layer names to convert. Can be specified multiple times. If not
+        specified, all layers of input file are processed"""
     )
 
-    arg_parser.add_argument(
-        '-tz', '--timezone',
-        dest='timezone',
-        help='timezone for time and datetime values with no timezone. If not specified, local timezone is assumed'
-    )
+    # TODO
+    #arg_parser.add_argument(
+    #    '-dt', '--datetime',
+    #    dest='datetime',
+    #    help='Name of attribute to treat as a datetime'
+    #)
+
+    # TODO
+    #arg_parser.add_argument(
+    #    '-tz', '--timezone',
+    #    dest='timezone',
+    #    help="""Timezone for time and datetime values with no timezone. If not
+    #    specified, local timezone is assumed"""
+    #)
 
     arg_parser.add_argument(
         '-s', '--srid',
         dest='srid',
-        default='0',
-        help='SRID of the spatial coordinates'
+        help='SRID of the spatial coordinates. This overrides the internal SRID estimation'
+    )
+
+    arg_parser.add_argument(
+        '-t', '--tablename',
+        dest='table_name',
+        help="""Name of table to insert PcPatches into. If not specified, name
+        of input file is used"""
+    )
+
+    arg_parser.add_argument(
+        '-a', '--action',
+        dest='table_action',
+        default = 'create',
+        help="""Action to take for the table. Possible actions are: (d)rop,
+        (c)reate, (a)ppend. If not specified, (c)reate is the default"""
     )
 
     arg_parser.add_argument(
         '-d', '--dsn',
         dest='dsn',
         required=True,
-        help='database connection string'
+        help='Database connection string'
     )
+
     arg_parser.add_argument(
         '-f', '--file',
         dest='input_file',
@@ -92,7 +174,7 @@ def open_input_file(f):
 def open_db_connection(dsn):
     return psycopg2.connect(dsn)
 
-def interpret_fields(layer, args):
+def interpret_fields(layer):
 
     def add_coordinate(dimensions, coord):
         fldType = ogr.OFTReal
@@ -132,10 +214,10 @@ def interpret_fields(layer, args):
 
         fldType = fldDef.GetType()
 
-        if args.group_by and fldInfo['name'] in args.group_by:
+        if Args.group_by and fldInfo['name'] in Args.group_by:
             fields['group_by'].append(fldInfo)
         elif fldType == ogr.OFTString:
-            if not args.group_by:
+            if not Args.group_by:
                 fields['group_by'].append(fldInfo)
             else:
                 fields['ignore'].append(idx)
@@ -239,9 +321,9 @@ def build_pc_format(fields):
 
     return XML_DECLARATION + ETree.tostring(pc_schema)
 
-def _add_pc_format(dbConn, pc_format):
+def _add_pc_format(pc_format, srid):
 
-    cursor = dbConn.cursor()
+    cursor = DBConn.cursor()
 
     try:
 
@@ -280,18 +362,22 @@ LIMIT 1
             next_pcid = next_pcid[0]
 
         cursor.execute(
-            'INSERT INTO pointcloud_formats (pcid, schema) VALUES (%s, %s)', (
+            'INSERT INTO pointcloud_formats (pcid, srid, schema) VALUES (%s, %s, %s)', (
                 next_pcid,
+                srid,
                 pc_format
             )
         )
 
     except psycopg2.Error:
+        DBConn.rollback()
         return None
+    finally:
+        cursor.close()
 
     return next_pcid
 
-def add_pc_format(dbConn, pc_format):
+def add_pc_format(pc_format, srid=0):
 
     max_count = 5
     count = 0
@@ -299,14 +385,14 @@ def add_pc_format(dbConn, pc_format):
     pcid = None
     while pcid is None:
         count += 1
-        pcid = _add_pc_format(dbConn, pc_format)
+        pcid = _add_pc_format(pc_format, srid)
 
         if count > max_count:
             raise
 
     return pcid
 
-def guess_layer_spatial_ref(self, layer):
+def guess_layer_spatial_ref(layer):
 
     extent = layer.GetExtent()
 
@@ -320,28 +406,55 @@ def guess_layer_spatial_ref(self, layer):
         extent[3] <= 90.
     ):
         # assume WGS84
-        srs = osr.SpatialReference()
-        srs.ImportFromEPSG(4326)
-        return srs
+        return 4326
 
-    return False
+    # cannot guess, return zero
+    return 0
 
-def get_layer_spatial_ref(self, layer):
+def _get_postgis_srid(proj4):
+
+    cursor = DBConn.cursor()
+
+    try:
+        cursor.execute("""
+SELECT
+    srid
+FROM spatial_ref_sys
+WHERE proj4text = %s
+        """, [proj4])
+
+        if cursor.rowcount > 0:
+            srid = cursor.fetchone()[0]
+        else:
+            srid = 0
+
+    except psycopg2.Error:
+        DBConn.rollback()
+        return 0
+    finally:
+        cursor.close()
+
+    return srid
+
+def get_layer_srid(layer):
+
+    if Args.srid is not None:
+        return Args.srid
 
     srs = layer.GetSpatialRef()
 
     # no spatial reference system, attempt to guess
     if not srs:
-        srs = self.guess_layer_spatial_ref(layer)
-        # cannot guess, fail
-        if not srs:
-            return False
+        return guess_layer_spatial_ref(layer)
 
     # invalid spatial reference system
     elif srs.Validate() != 0:
-        return False
+        return 0
 
-    return True
+    # try to get the PostGIS SRID
+    srid = _get_postgis_srid(srs.ExportToProj4())
+
+    return srid
 
 def extract_group(feat, fields):
 
@@ -352,78 +465,271 @@ def extract_group(feat, fields):
         group_list.append(feat.GetField(fields['group_by'][idx]['index']))
         group_dict[fields['group_by'][idx]['name']] = group_list[-1]
 
-    return {
-        hashlib.md5(json.dumps(group_list)).hexdigest(): group_dict
-    }
+    #return hashlib.md5(json.dumps(group_list)).hexdigest(), group_dict
+    return group_dict
 
-def import_layer(dbConn, pcid, layer, fields, args):
+def create_temp_table():
+
+    table_name = (
+        'temp_' +
+        ''.join(random.choice('0123456789abcdefghijklmnopqrstuvwxyz') for i in range(16))
+    )
+
+    cursor = DBConn.cursor()
+
+    try:
+
+        cursor.execute("""
+CREATE TEMPORARY TABLE "%s" (
+    id BIGSERIAL PRIMARY KEY,
+    pt PCPOINT,
+    group_by TEXT
+)
+ON COMMIT DROP;
+        """, [AsIs(table_name)])
+
+    except psycopg2.Error:
+        DBConn.rollback()
+        raise
+    finally:
+        cursor.close()
+
+    return table_name
+
+def build_pcpoint_from_feature(feat, fields):
+
+    geom = feat.geometry()
+    if geom.GetGeometryType() != ogr.wkbPoint:
+        geom = geom.Centroid()
+
+    vals = []
+    for dimension in fields['dimension']:
+
+        if dimension['name'] in ['X', 'Y', 'Z']:
+            func = getattr(geom, 'Get' + dimension['name'])
+            vals.append(func())
+        elif dimension['type']['source'] in [
+            ogr.OFTDate,
+            ogr.OFTTime,
+            ogr.OFTDateTime
+        ]:
+            val = feat.GetFieldAsDateTime(dimension['index'])
+
+            # date is converted to number of seconds UTC from UNIX epoch
+            if dimension['type']['source'] == ogr.OFTDate:
+                vals.append((
+                    datetime.datetime(*val[0:3]) -
+                    datetime.datetime(1970, 1, 1)
+                ).total_seconds())
+            # time is converted to number of seconds from 00:00:00 UTC
+            elif dimension['type']['source'] == ogr.OFTTime:
+                tz = OGR_TZ(val[-1])
+                vals.append((
+                    datetime.time(*val[3:6], tzinfo=tz).astimezone(pytz.UTC) -
+                    datetime.time(0, 0, 0, tzinfo=pytz.UTC)
+                ).total_seconds())
+            elif dimension['type']['source'] == ogr.OFTDateTime:
+                tz = OGR_TZ(val[-1])
+                vals.append((
+                    datetime.datetime(*val[0:6], tzinfo=tz).astimezone(pytz.UTC) -
+                    datetime.datetime(1970, 1, 1)
+                ).total_seconds())
+        else:
+            vals.append(feat.GetField(dimension['index']))
+        
+    return vals
+
+def insert_pcpoint(table_name, pcid, group, vals):
+
+    cursor = DBConn.cursor()
+
+    try:
+
+        group_str = json.dumps(group)
+
+        cursor.execute("""
+INSERT INTO "%s" (pt, group_by)
+VALUES (PC_MakePoint(%s, %s), %s)
+        """, [
+            AsIs(table_name),
+            pcid,
+            vals,
+            group_str
+        ])
+
+    except psycopg2.Error:
+        DBConn.rollback()
+        raise
+    finally:
+        cursor.close()
+
+def insert_pcpatches(file_table, temp_table, layer):
+
+    layer_name = layer.GetName()
+
+    cursor = DBConn.cursor()
+
+    try:
+
+        cursor.execute("""
+INSERT INTO "%s" (layer_name, group_by, pa) 
+SELECT
+    layer_name,
+    group_by::json,
+    pa
+FROM (
+    SELECT
+        %s AS layer_name,
+        group_by,
+        PC_Patch(pt) AS pa
+    FROM "%s"
+    GROUP BY 1, 2
+) sub
+        """, [
+            AsIs(file_table),
+            layer_name,
+            AsIs(temp_table),
+        ])
+
+    except psycopg2.Error:
+        DBConn.rollback()
+        raise
+    finally:
+        cursor.close()
+
+def import_layer(layer, file_table, pcid, fields):
 
     num_features = layer.GetFeatureCount()
 
-    groups = []
+    # create temporary table for layer
+    temp_table = create_temp_table()
+
+    # iterate over features
     for idx in xrange(num_features):
 
         feat = layer.GetFeature(idx)
 
-        # group first
-        extract_group(feat, fields)
+        # get group
+        group = extract_group(feat, fields)
 
-        # dimensions
+        # build pcpoint values
+        vals = build_pcpoint_from_feature(feat, fields)
 
-def convert_layer(layer, dbConn, args):
+        # insert
+        insert_pcpoint(temp_table, pcid, group, vals)
+
+    # build patches for layer by distinct group
+    insert_pcpatches(file_table, temp_table, layer)
+
+    return True
+
+def convert_layer(layer, file_table):
 
     # process fields
     # find what to group by, what to ignore, what to process
-    fields = interpret_fields(layer, args)
+    fields = interpret_fields(layer)
 
     if not fields['dimension']:
         return
 
-    # build temporary layer format
+    # build layer format
     pc_format = build_pc_format(fields)
 
+    # get SRID of layer
+    srid = get_layer_srid(layer)
+
     # add format to database
-    pcid = add_pc_format(dbConn, pc_format)
+    pcid = add_pc_format(pc_format, srid)
 
-    import_layer(dbConn, pcid, layer, fields, args)
+    # do the actual import
+    import_layer(layer, file_table, pcid, fields)
 
-def convert_file(dsIn, dbConn, args):
+def create_file_table():
 
-    num_layers = dsIn.GetLayerCount()
+    if Args.table_name is not None:
+        table_name = Args.table_name
+    else:
+        table_name = os.path.splitext(os.path.basename(DSIn.name))[0]
+
+    cursor = DBConn.cursor()
+
+    action = Args.table_action[0]
+
+    try:
+
+        # append to existing table, check that table exists
+        if action == 'a':
+            cursor.execute("""
+SELECT 1 FROM "%s"
+            """, [AsIs(table_name)])
+            return
+
+        # drop table
+        if action == 'd':
+            cursor.execute("""
+DROP TABLE IF EXISTS "%s"
+            """, [AsIs(table_name)])
+
+        cursor.execute("""
+CREATE TABLE "%s" (
+    id BIGSERIAL PRIMARY KEY,
+    pa PCPATCH,
+    layer_name TEXT,
+    group_by JSON
+)
+        """, [AsIs(table_name)])
+
+    except psycopg2.Error:
+        DBConn.rollback()
+        raise
+    finally:
+        cursor.close()
+
+    return table_name
+
+def convert_file():
+
+    file_table = create_file_table()
+
+    num_layers = DSIn.GetLayerCount()
     if num_layers < 1:
         return
 
-    if args.layer:
-        layers = args.layer
+    if Args.layer:
+        layers = Args.layer
     else:
         layers = range(num_layers)
 
     for e in layers:
 
-        if args.layer:
-            layer = dsIn.GetLayerByName(e)
+        if Args.layer:
+            layer = DSIn.GetLayerByName(e)
         else:
-            layer = dsIn.GetLayerByIndex(e)
+            layer = DSIn.GetLayerByIndex(e)
 
         if not layer:
             raise
 
-        convert_layer(layer, dbConn, args)
+        convert_layer(layer, file_table)
 
-def run(args):
+def run():
 
-    dsIn = open_input_file(args.input_file)
-    dbConn = open_db_connection(args.dsn)
+    global DSIn
+    global DBConn
+
+    DSIn = open_input_file(Args.input_file)
+    DBConn = open_db_connection(Args.dsn)
 
     try:
-        convert_file(dsIn, dbConn, args)
-        dbConn.commit()
+        convert_file()
+        DBConn.commit()
     except:
+        DBConn.rollback()
         raise
     finally:
-        dbConn.close()
+        DBConn.close()
 
 if __name__ == '__main__':
     arg_parser = _init_argparser()
-    args = arg_parser.parse_args()
-    run(args)
+    Args = arg_parser.parse_args()
+    run()
