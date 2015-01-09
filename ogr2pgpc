@@ -124,9 +124,15 @@ def _init_argparser():
     #)
 
     arg_parser.add_argument(
+        '-p', '--pcid',
+        dest='pcid',
+        help='PCID of the pgPointCloud schema. This overrides the internal PCID schema creation'
+    )
+
+    arg_parser.add_argument(
         '-s', '--srid',
         dest='srid',
-        help='SRID of the spatial coordinates. This overrides the internal SRID estimation'
+        help='SRID of the spatial coordinates X, Y, Z. This overrides the internal SRID estimation'
     )
 
     arg_parser.add_argument(
@@ -297,7 +303,7 @@ def build_pc_dimension(doc, dimension, index):
     ogr_.append(data_type)
     data_type.text = ogr.GetFieldTypeName(dimension['type']['source'])
 
-def build_pc_format(fields):
+def build_pc_schema(fields):
     XML_DECLARATION = '<?xml version="1.0" encoding="UTF-8"?>'
 
     pc_schema = ETree.Element('pc:PointCloudSchema')
@@ -321,11 +327,22 @@ def build_pc_format(fields):
 
     return XML_DECLARATION + ETree.tostring(pc_schema)
 
-def _add_pc_format(pc_format, srid):
+def _add_pc_schema(pc_schema, srid):
 
     cursor = DBConn.cursor()
 
     try:
+
+        # check if this schema already exists
+        cursor.execute("""
+SELECT
+    pcid
+FROM pointcloud_formats
+WHERE schema = %s
+        """, [pc_schema])
+        # it does exist, use
+        if cursor.rowcount > 0:
+            return cursor.fetchone()[0]
 
         # see if there are any available PCIDs
         cursor.execute("""
@@ -355,17 +372,16 @@ WHERE (foo.dist > 1 OR foo.dist IS NULL)
 ORDER BY foo.pcid DESC
 LIMIT 1
         """)
-        next_pcid = cursor.fetchone()
-        if next_pcid is None:
-            next_pcid = 65535
+        if cursor.rowcount > 0:
+            next_pcid = cursor.fetchone()[0]
         else:
-            next_pcid = next_pcid[0]
+            next_pcid = 65535
 
         cursor.execute(
             'INSERT INTO pointcloud_formats (pcid, srid, schema) VALUES (%s, %s, %s)', (
                 next_pcid,
                 srid,
-                pc_format
+                pc_schema
             )
         )
 
@@ -377,7 +393,7 @@ LIMIT 1
 
     return next_pcid
 
-def add_pc_format(pc_format, srid=0):
+def add_pc_schema(pc_schema, srid=0):
 
     max_count = 5
     count = 0
@@ -385,7 +401,7 @@ def add_pc_format(pc_format, srid=0):
     pcid = None
     while pcid is None:
         count += 1
-        pcid = _add_pc_format(pc_format, srid)
+        pcid = _add_pc_schema(pc_schema, srid)
 
         if count > max_count:
             raise
@@ -632,14 +648,18 @@ def convert_layer(layer, file_table):
     if not fields['dimension']:
         return
 
-    # build layer format
-    pc_format = build_pc_format(fields)
-
     # get SRID of layer
     srid = get_layer_srid(layer)
 
-    # add format to database
-    pcid = add_pc_format(pc_format, srid)
+    # specified pcid
+    if Args.pcid is not None:
+        pcid = Args.pcid
+    else:
+        # build pointcloud schema
+        pc_schema = build_pc_schema(fields)
+
+        # add schema to database
+        pcid = add_pc_schema(pc_schema, srid)
 
     # do the actual import
     import_layer(layer, file_table, pcid, fields)
@@ -659,10 +679,14 @@ def create_file_table():
 
         # append to existing table, check that table exists
         if action == 'a':
-            cursor.execute("""
+            try:
+                cursor.execute("""
 SELECT 1 FROM "%s"
-            """, [AsIs(table_name)])
-            return
+                """, [AsIs(table_name)])
+            except psycopg2.Error:
+                raise Exception('Table not found: %s' % table_name)
+
+            return table_name
 
         # drop table
         if action == 'd':
