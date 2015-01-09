@@ -108,12 +108,40 @@ def _init_argparser():
         specified, all layers of input file are processed"""
     )
 
-    # TODO
-    #arg_parser.add_argument(
-    #    '-dt', '--datetime',
-    #    dest='datetime',
-    #    help='Name of attribute to treat as a datetime'
-    #)
+    arg_parser.add_argument(
+        '--date',
+        action='append',
+        dest='date',
+        help="""Names of attributes to treat as Date values. Can be specified
+        multiple times"""
+    )
+    arg_parser.add_argument(
+        '--date-format',
+        dest='date_format',
+        help="""Date format. Formatting is based upon the Python datetime module's strptime()"""
+    )
+    arg_parser.add_argument(
+        '--time',
+        dest='time',
+        help="""Names of attributes to treat as Time values. Can be specified
+        multiple times"""
+    )
+    arg_parser.add_argument(
+        '--time-format',
+        dest='time_format',
+        help="""Time format. Formatting is based upon the Python datetime module's strptime()"""
+    )
+    arg_parser.add_argument(
+        '--datetime',
+        dest='datetime',
+        help="""Names of attributes to treat as DateTime values. Can be
+        specified multiple times"""
+    )
+    arg_parser.add_argument(
+        '--datetime-format',
+        dest='datetime_format',
+        help="""Datetime format. Formatting is based upon the Python datetime module's strptime()"""
+    )
 
     # TODO
     #arg_parser.add_argument(
