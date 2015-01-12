@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 import datetime
 import pytz
 
@@ -17,193 +15,25 @@ import random
 
 import ipdb
 
-#from .library import *
+from .ogr import OGR_TZ
+from .pgpointcloud import DATA_TYPE_MAPPING
 
-class OGR_TZ(datetime.tzinfo):
-
-    def __init__(self, ogr_tz):
-
-        self._hours = None
-        self._minutes = None
-
-        if ogr_tz <= 1:
-            return
-
-        offset = int(ogr_tz - 100 * 15)
-        hours = int(offset / 60)
-        minutes = int(abs(offset - hours * 60))
-
-        if offset < 0:
-            self._hours = -1 * abs(hours)
-            self._minutes = -1 * minutes
-        else:
-            self._hours = hours
-            self._minutes = minutes
-
-    def utcoffset(self, dt):
-
-        if self._hours is None:
-            return None
-
-        return datetime.timedelta(hours=self._hours, minutes=self._minutes)
-
-    def tzname(self, dt):
-
-        if self._hours is None:
-            return None
-
-        sign = '-' if self._hours < 0 else '+'
-
-        return "%s%02f:%02f" % (
-            sign,
-            abs(self._hours),
-            abs(self._minutes)
-        )
-
-    def dst(self, dt):
-        return timedelta(0)
-
-DATA_TYPE_MAPPING = {
-    ogr.OFTInteger: {
-        'interpretation': 'int64_t',
-        'size': 8
-    },
-    ogr.OFTReal: {
-        'interpretation': 'double',
-        'size': 8
-    },
-    ogr.OFTDate: {
-        'interpretation': 'int64_t',
-        'size': 8
-    },
-    ogr.OFTTime: {
-        'interpretation': 'int64_t',
-        'size': 8
-    },
-    ogr.OFTDateTime: {
-        'interpretation': 'int64_t',
-        'size': 8
-    }
-}
-
-Args = None
+Config = {}
 DSIn = None
 DBConn = None
 
-def _init_argparser():
-
-    arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument(
-        '-g', '--group-by',
-        action='append',
-        dest='group_by',
-        help="""Names of attributes to group by. Can be specified multiple 
-        times. If not specified, automatic grouping is done"""
-    )
-    arg_parser.add_argument(
-        '-l', '--layer',
-        action='append',
-        dest='layer',
-        help="""Layer names to convert. Can be specified multiple times. If not
-        specified, all layers of input file are processed"""
-    )
-
-    arg_parser.add_argument(
-        '--date',
-        action='append',
-        dest='date',
-        help="""Names of attributes to treat as Date values. Can be specified
-        multiple times"""
-    )
-    arg_parser.add_argument(
-        '--date-format',
-        dest='date_format',
-        help="""Date format. Formatting is based upon the Python datetime module's strptime()"""
-    )
-    arg_parser.add_argument(
-        '--time',
-        dest='time',
-        help="""Names of attributes to treat as Time values. Can be specified
-        multiple times"""
-    )
-    arg_parser.add_argument(
-        '--time-format',
-        dest='time_format',
-        help="""Time format. Formatting is based upon the Python datetime module's strptime()"""
-    )
-    arg_parser.add_argument(
-        '--datetime',
-        dest='datetime',
-        help="""Names of attributes to treat as DateTime values. Can be
-        specified multiple times"""
-    )
-    arg_parser.add_argument(
-        '--datetime-format',
-        dest='datetime_format',
-        help="""Datetime format. Formatting is based upon the Python datetime module's strptime()"""
-    )
-
-    # TODO
-    #arg_parser.add_argument(
-    #    '-tz', '--timezone',
-    #    dest='timezone',
-    #    help="""Timezone for time and datetime values with no timezone. If not
-    #    specified, local timezone is assumed"""
-    #)
-
-    arg_parser.add_argument(
-        '-p', '--pcid',
-        dest='pcid',
-        help='PCID of the pgPointCloud schema. This overrides the internal PCID schema creation'
-    )
-
-    arg_parser.add_argument(
-        '-s', '--srid',
-        dest='srid',
-        help='SRID of the spatial coordinates X, Y, Z. This overrides the internal SRID estimation'
-    )
-
-    arg_parser.add_argument(
-        '-t', '--tablename',
-        dest='table_name',
-        help="""Name of table to insert PcPatches into. If not specified, name
-        of input file is used"""
-    )
-
-    arg_parser.add_argument(
-        '-a', '--action',
-        dest='table_action',
-        default = 'create',
-        help="""Action to take for the table. Possible actions are: (d)rop,
-        (c)reate, (a)ppend. If not specified, (c)reate is the default"""
-    )
-
-    arg_parser.add_argument(
-        '-d', '--dsn',
-        dest='dsn',
-        required=True,
-        help='Database connection string'
-    )
-
-    arg_parser.add_argument(
-        '-f', '--file',
-        dest='input_file',
-        required=True,
-        help="OGR compatible file to be imported to pgPointCloud"
-    )
-
-    return arg_parser
-
 def open_input_file(f):
+
+    global DSIn
 
     ogr.RegisterAll()
 
-    ds = ogr.OpenShared(f, update=False)
+    DSIn = ogr.OpenShared(f, update=False)
 
-    if ds is None:
+    if DSIn is None:
         raise
 
-    return ds
+    return DSIn
 
 def open_db_connection(dsn):
     return psycopg2.connect(dsn)
@@ -238,6 +68,7 @@ def interpret_fields(layer):
     feat = layer.GetFeature(0)
     numFields = feat.GetFieldCount()
 
+    group_by = Config.get('group_by', [])
     for idx in xrange(numFields):
         fldDef = feat.GetFieldDefnRef(idx)
 
@@ -248,10 +79,11 @@ def interpret_fields(layer):
 
         fldType = fldDef.GetType()
 
-        if Args.group_by and fldInfo['name'] in Args.group_by:
+
+        if group_by and fldInfo['name'] in group_by:
             fields['group_by'].append(fldInfo)
         elif fldType == ogr.OFTString:
-            if not Args.group_by:
+            if not group_by:
                 fields['group_by'].append(fldInfo)
             else:
                 fields['ignore'].append(idx)
@@ -482,8 +314,9 @@ WHERE proj4text = %s
 
 def get_layer_srid(layer):
 
-    if Args.srid is not None:
-        return Args.srid
+    srid = Config.get('srid', None)
+    if srid is not None:
+        return srid
 
     srs = layer.GetSpatialRef()
 
@@ -680,9 +513,8 @@ def convert_layer(layer, file_table):
     srid = get_layer_srid(layer)
 
     # specified pcid
-    if Args.pcid is not None:
-        pcid = Args.pcid
-    else:
+    pcid = Config.get('pcid', None)
+    if pcid is None:
         # build pointcloud schema
         pc_schema = build_pc_schema(fields)
 
@@ -694,14 +526,13 @@ def convert_layer(layer, file_table):
 
 def create_file_table():
 
-    if Args.table_name is not None:
-        table_name = Args.table_name
-    else:
+    table_name = Config.get('table_name', None)
+    if table_name is None:
         table_name = os.path.splitext(os.path.basename(DSIn.name))[0]
 
     cursor = DBConn.cursor()
 
-    action = Args.table_action[0]
+    action = Config.get('table_action', 'c')[0]
 
     try:
 
@@ -747,14 +578,15 @@ def convert_file():
     if num_layers < 1:
         return
 
-    if Args.layer:
-        layers = Args.layer
-    else:
+    layers = Config.get('layer', [])
+    filtered_layers = True
+    if not layers:
         layers = range(num_layers)
+        filtered_layers = False
 
     for e in layers:
 
-        if Args.layer:
+        if filtered_layers:
             layer = DSIn.GetLayerByName(e)
         else:
             layer = DSIn.GetLayerByIndex(e)
@@ -764,13 +596,15 @@ def convert_file():
 
         convert_layer(layer, file_table)
 
-def run():
+def ogr_to_pgpointcloud(config):
 
+    global Config
     global DSIn
     global DBConn
 
-    DSIn = open_input_file(Args.input_file)
-    DBConn = open_db_connection(Args.dsn)
+    Config = config
+    DSIn = open_input_file(Config.get('input_file', None))
+    DBConn = open_db_connection(Config.get('dsn', None))
 
     try:
         convert_file()
@@ -780,8 +614,3 @@ def run():
         raise
     finally:
         DBConn.close()
-
-if __name__ == '__main__':
-    arg_parser = _init_argparser()
-    Args = arg_parser.parse_args()
-    run()
