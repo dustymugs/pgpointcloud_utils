@@ -15,8 +15,6 @@ Requirements
 License
 -------
 
-3-clause BSD
-
 ```
 Copyright (c) 2015, Granular, Inc.
 All rights reserved.
