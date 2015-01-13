@@ -135,16 +135,18 @@ def interpret_fields(layer):
                 if found:
 
                     if treat_as == 'date':
-                        dest = DATA_TYPE_MAPPING[ogr.OFTDate]
-                    elif treat_as == 'date':
-                        dest = DATA_TYPE_MAPPING[ogr.OFTTime]
+                        source = ogr.OFTDate
+                    elif treat_as == 'time':
+                        source = ogr.OFTTime
                     elif treat_as == 'datetime':
-                        dest = DATA_TYPE_MAPPING[ogr.OFTDateTime]
+                        source = ogr.OFTDateTime
+
+                    dest = DATA_TYPE_MAPPING[source]
 
                     fldInfo['type'] = {
                         'treat_as': treat_as,
                         'callback': details['callback'],
-                        'source': fldType,
+                        'source': source,
                         'dest': dest,
                     }
                     fields['dimension'].append(fldInfo)
@@ -297,9 +299,25 @@ def convert_date_to_seconds(the_date):
     value is a decimal to capture milliseconds
     '''
 
+    if not isinstance(the_date, datetime.date):
+
+        # if datetime, convert to 
+        if isinstance(the_date, datetime.datetime):
+            if the_date.tzinfo is not None:
+                the_date = the_date.astimezone(pytz.UTC)
+            the_date = the_date.date()
+        # no can do
+        else:
+            raise
+
+    the_date = datetime.datetime.combine(
+        the_date,
+        datetime.time(0, 0, 0, tzinfo=pytz.UTC)
+    )
+
     return (
         the_date -
-        datetime.datetime(1970, 1, 1)
+        datetime.datetime(1970, 1, 1, tzinfo=pytz.UTC)
     ).total_seconds()
 
 def convert_time_to_seconds(the_time):
@@ -307,6 +325,19 @@ def convert_time_to_seconds(the_time):
     convert time to number of seconds UTC from 00:00:00 UTC
     value is a decimal to capture milliseconds
     '''
+
+    if not isinstance(the_time, datetime.time):
+
+        # if datetime, convert to 
+        if isinstance(the_time, datetime.datetime):
+            the_time = the_time.time()
+
+            if the_time.tzinfo is None:
+                raise
+
+        # no can do
+        else:
+            raise
 
     return (
         the_time.astimezone(pytz.UTC) -
@@ -321,7 +352,7 @@ def convert_datetime_to_seconds(the_datetime):
 
     return (
         the_datetime.astimezone(pytz.UTC) -
-        datetime.datetime(1970, 1, 1)
+        datetime.datetime(1970, 1, 1, tzinfo=pytz.UTC)
     ).total_seconds()
 
 def build_pcpoint_from_feature(feat, fields):
@@ -331,7 +362,9 @@ def build_pcpoint_from_feature(feat, fields):
         geom = geom.Centroid()
 
 
-    localtz = Config.get('timezone', get_localzone())
+    localtz = Config.get('timezone')
+    if localtz is None:
+        localtz = get_localzone()
 
     vals = []
     for dimension in fields['dimension']:
@@ -351,9 +384,10 @@ def build_pcpoint_from_feature(feat, fields):
 
             if treat_as == 'date':
 
+                val = callback(val)
                 vals.append(
                     convert_date_to_seconds(
-                        callback(val)
+                        val.date()
                     )
                 )
 
