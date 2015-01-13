@@ -10,3 +10,7 @@ Requirements
 * dateutil
 * pytz
 * tzlocal
+
+License
+
+3-clause BSD
