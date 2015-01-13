@@ -1,11 +1,13 @@
+import time
 import datetime
+from dateutil.parser import parse as datetime_parse
+from tzlocal import get_localzone
 import pytz
 
 import os
 
 import simplejson as json
-import hashlib
-from xml.etree import ElementTree as ETree
+#import hashlib
 import psycopg2
 from psycopg2.extensions import AsIs
 from osgeo import ogr, osr
@@ -13,12 +15,34 @@ import argparse
 
 import random
 
-import ipdb
-
 from .ogr import OGR_TZ
-from .pgpointcloud import DATA_TYPE_MAPPING
+from .pgpointcloud import (
+    DATA_TYPE_MAPPING,
+    build_pc_dimension, build_pc_schema, add_pc_schema
+)
 
-Config = {}
+COORDINATES = ['X', 'Y', 'Z']
+
+OVERRIDE_INPUT_FORMAT = [
+    ['date', datetime_parse],
+    ['time', datetime_parse],
+    ['datetime', datetime_parse],
+]
+
+Config = {
+    'input_file': None,
+    'dsn': None,
+    'group_by': [],
+    'layer': [],
+    'srid': None,
+    'pcid': None,
+    'table_name': None,
+    'table_action': None,
+    'date': [],
+    'time': [],
+    'datetime': [],
+    'timezone': get_localzone(),
+}
 DSIn = None
 DBConn = None
 
@@ -54,7 +78,8 @@ def interpret_fields(layer):
     fields = {
         'group_by': [],
         'ignore': [],
-        'dimension': []
+        'dimension': [],
+        'overrides': {}
     }
 
     if layer.GetFeatureCount() < 1:
@@ -69,6 +94,18 @@ def interpret_fields(layer):
     numFields = feat.GetFieldCount()
 
     group_by = Config.get('group_by', [])
+
+    # date, time, datetime overrides
+    overrides = {}
+    for override_field, override_callback in OVERRIDE_INPUT_FORMAT:
+        column = Config.get(override_field, [])
+
+        overrides[override_field] = {
+            'column': column,
+            'callback': override_callback
+        }
+
+    # loop over each field
     for idx in xrange(numFields):
         fldDef = feat.GetFieldDefnRef(idx)
 
@@ -79,20 +116,47 @@ def interpret_fields(layer):
 
         fldType = fldDef.GetType()
 
-
+        # user-defined group_by list and field in that list 
         if group_by and fldInfo['name'] in group_by:
+            # add field to internal group_by list
             fields['group_by'].append(fldInfo)
+        # field is string format
         elif fldType == ogr.OFTString:
+            # field not in user-defined group_by list
             if not group_by:
-                fields['group_by'].append(fldInfo)
+
+                # field in override
+                found = False
+                for treat_as, details in overrides.iteritems():
+                    if fldInfo['name'] in details['column']:
+                        found = True
+                        break
+
+                if found:
+
+                    fldInfo['type'] = {
+                        'treat_as': treat_as,
+                        'callback': details['callback'],
+                        'source': None,
+                        'dest': DATA_TYPE_MAPPING[fldType],
+                    }
+                    fields['dimension'].append(fldInfo)
+
+                # default is to add to group_by
+                else:
+                    fields['group_by'].append(fldInfo)
+
+            # add field to internal ignore list
             else:
                 fields['ignore'].append(idx)
+        # field is supported
         elif fldType in DATA_TYPE_MAPPING:
             fldInfo['type'] = {
                 'source': fldType,
                 'dest': DATA_TYPE_MAPPING[fldType],
             }
             fields['dimension'].append(fldInfo)
+        # unknown field, add to internal ignore list
         else:
             fields['ignore'].append(fldInfo)
 
@@ -114,159 +178,6 @@ def interpret_fields(layer):
             print "    %s" % fld['name']
 
     return fields
-
-def build_pc_dimension(doc, dimension, index):
-
-    pc_dimension = ETree.Element('pc:dimension')
-    doc.append(pc_dimension)
-
-    pc_position = ETree.Element('pc:position')
-    pc_dimension.append(pc_position)
-    pc_position.text = str(index)
-
-    pc_name = ETree.Element('pc:name')
-    pc_dimension.append(pc_name)
-    pc_name.text = dimension['name']
-
-    pc_size = ETree.Element('pc:size')
-    pc_dimension.append(pc_size)
-    pc_size.text = str(dimension['type']['dest']['size'])
-
-    pc_interpretation = ETree.Element('pc:interpretation')
-    pc_dimension.append(pc_interpretation)
-    pc_interpretation.text = dimension['type']['dest']['interpretation']
-
-    if dimension['type']['source'] in [
-        ogr.OFTDate,
-        ogr.OFTTime,
-        ogr.OFTDateTime
-    ]:
-        pc_description = ETree.Element('pc:description')
-        pc_dimension.append(pc_description)
-
-        if dimension['type']['source'] == ogr.OFTDate:
-            pc_description.text = 'date as number of seconds UTC from UNIX epoch to 00:00:00 of the date'
-        elif dimension['type']['source'] == ogr.OFTTime:
-            pc_description.text = 'time as number of seconds UTC from 00:00:00'
-        elif dimension['type']['source'] == ogr.OFTDateTime:
-            pc_description.text = 'datetime as number of seconds UTC from UNIX epoch'
-
-    pc_metadata = ETree.Element('pc:metadata')
-    pc_dimension.append(pc_metadata)
-
-    # additional tags indicating that dimension is special 
-    # date, time, datetime
-    ogr_ = ETree.Element('ogr')
-    pc_metadata.append(ogr_)
-
-    data_type = ETree.Element('datatype')
-    ogr_.append(data_type)
-    data_type.text = ogr.GetFieldTypeName(dimension['type']['source'])
-
-def build_pc_schema(fields):
-    XML_DECLARATION = '<?xml version="1.0" encoding="UTF-8"?>'
-
-    pc_schema = ETree.Element('pc:PointCloudSchema')
-    pc_schema.set('xmlns:pc', "http://pointcloud.org/schemas/PC/1.1")
-    pc_schema.set('xmlns:xsi', "http://www.w3.org/2001/XMLSchema-instance")
-
-    pc_metadata = ETree.Element('pc:metadata')
-    pc_schema.append(pc_metadata)
-
-    # compression
-    Metadata = ETree.Element('Metadata')
-    pc_metadata.append(Metadata)
-    Metadata.set('name', 'compression')
-    Metadata.text = 'dimensional'
-
-    num_dimensions = 1
-
-    for dimension in fields['dimension']:
-        build_pc_dimension(pc_schema, dimension, num_dimensions)
-        num_dimensions += 1
-
-    return XML_DECLARATION + ETree.tostring(pc_schema)
-
-def _add_pc_schema(pc_schema, srid):
-
-    cursor = DBConn.cursor()
-
-    try:
-
-        # check if this schema already exists
-        cursor.execute("""
-SELECT
-    pcid
-FROM pointcloud_formats
-WHERE schema = %s
-        """, [pc_schema])
-        # it does exist, use
-        if cursor.rowcount > 0:
-            return cursor.fetchone()[0]
-
-        # see if there are any available PCIDs
-        cursor.execute("""
-SELECT count(*) FROM pointcloud_formats
-        """)
-        pcid_count = cursor.fetchone()[0]
-
-        # no vacancy
-        if pcid_count == 65535:
-            raise
-
-        # next best PCID
-        cursor.execute("""
-WITH foo AS (
-SELECT
-	pcid,
-	lead(pcid, 1, NULL) OVER (ORDER BY pcid DESC),
-	pcid - lead(pcid, 1, NULL) OVER (ORDER BY pcid DESC) AS dist
-FROM pointcloud_formats
-ORDER BY pcid DESC
-)
-SELECT
-	foo.pcid - 1 AS next_pcid
-FROM foo
-WHERE (foo.dist > 1 OR foo.dist IS NULL)
-	AND (SELECT count(*) FROM pointcloud_formats AS srs WHERE srs.pcid = foo.pcid - 1) < 1
-ORDER BY foo.pcid DESC
-LIMIT 1
-        """)
-        if cursor.rowcount > 0:
-            next_pcid = cursor.fetchone()[0]
-        else:
-            next_pcid = 65535
-
-        cursor.execute(
-            'INSERT INTO pointcloud_formats (pcid, srid, schema) VALUES (%s, %s, %s)', (
-                next_pcid,
-                srid,
-                pc_schema
-            )
-        )
-
-    except psycopg2.Error:
-        DBConn.rollback()
-        return None
-    finally:
-        cursor.close()
-
-    return next_pcid
-
-def add_pc_schema(pc_schema, srid=0):
-
-    max_count = 5
-    count = 0
-
-    pcid = None
-    while pcid is None:
-        count += 1
-        pcid = _add_pc_schema(pc_schema, srid)
-
-        if count > max_count:
-            raise
-
-    return pcid
 
 def guess_layer_spatial_ref(layer):
 
@@ -373,45 +284,136 @@ ON COMMIT DROP;
 
     return table_name
 
+def convert_date_to_seconds(the_date):
+    '''
+    convert date to number of seconds UTC from UNIX epoch
+    '''
+
+    return (
+        the_date -
+        datetime.datetime(1970, 1, 1)
+    ).total_seconds()
+
+def convert_time_to_seconds(the_time):
+    '''
+    convert time to number of seconds UTC from 00:00:00 UTC
+    '''
+
+    return (
+        the_time.astimezone(pytz.UTC) -
+        datetime.time(0, 0, 0, tzinfo=pytz.UTC)
+    ).total_seconds()
+
+def convert_datetime_to_seconds(the_datetime):
+    '''
+    convert datetime to number of seconds UTC from UNIX epoch
+    '''
+
+    return (
+        the_datetime.astimezone(pytz.UTC) -
+        datetime.datetime(1970, 1, 1)
+    ).total_seconds()
+
 def build_pcpoint_from_feature(feat, fields):
 
     geom = feat.geometry()
     if geom.GetGeometryType() != ogr.wkbPoint:
         geom = geom.Centroid()
 
+
+    localtz = Config.get('timezone', get_localzone())
+
     vals = []
     for dimension in fields['dimension']:
 
-        if dimension['name'] in ['X', 'Y', 'Z']:
+        # x, y, z dimension
+        if dimension['name'] in COORDINATES:
+
             func = getattr(geom, 'Get' + dimension['name'])
             vals.append(func())
+
+        # OGR date, time or datetime
         elif dimension['type']['source'] in [
             ogr.OFTDate,
             ogr.OFTTime,
             ogr.OFTDateTime
         ]:
+
             val = feat.GetFieldAsDateTime(dimension['index'])
 
-            # date is converted to number of seconds UTC from UNIX epoch
             if dimension['type']['source'] == ogr.OFTDate:
-                vals.append((
-                    datetime.datetime(*val[0:3]) -
-                    datetime.datetime(1970, 1, 1)
-                ).total_seconds())
-            # time is converted to number of seconds from 00:00:00 UTC
+
+                vals.append(
+                    convert_date_to_seconds(
+                        datetime.datetime(*val[0:3])
+                    )
+                )
+
             elif dimension['type']['source'] == ogr.OFTTime:
+
                 tz = OGR_TZ(val[-1])
-                vals.append((
-                    datetime.time(*val[3:6], tzinfo=tz).astimezone(pytz.UTC) -
-                    datetime.time(0, 0, 0, tzinfo=pytz.UTC)
-                ).total_seconds())
+                if tz.utcoffset() is None:
+                    tz = localtz
+                vals.append(
+                    convert_time_to_seconds(
+                        datetime.time(*val[3:6], tzinfo=tz)
+                    )
+                )
+
             elif dimension['type']['source'] == ogr.OFTDateTime:
+
                 tz = OGR_TZ(val[-1])
-                vals.append((
-                    datetime.datetime(*val[0:6], tzinfo=tz).astimezone(pytz.UTC) -
-                    datetime.datetime(1970, 1, 1)
-                ).total_seconds())
+                if tz.utcoffset() is None:
+                    tz = localtz
+                vals.append(
+                    convert_datetime_to_seconds(
+                        datetime.datetime(*val[0:6], tzinfo=tz)
+                    )
+                )
+
+        elif (
+            dimension['type']['source'] is None and
+            'treat_as' in dimension['type']
+        ):
+            val = feat.GetField(dimension['index'])
+            treat_as = dimension['type']['treat_as']
+            callback = dimension['type']['callback']
+
+            if treat_as == 'date':
+
+                vals.append(
+                    convert_date_to_seconds(
+                        callback(val).date()
+                    )
+                )
+
+            elif treat_as == 'time':
+
+                val = callback(val).time()
+                if val.tzinfo is None:
+                    val = localtz.localize(val)
+
+                vals.append(
+                    convert_time_to_seconds(
+                        val
+                    )
+                )
+
+            elif treat_as == 'datetime':
+
+                val = callback(val)
+                if val.tzinfo is None:
+                    val = localtz.localize(val)
+
+                vals.append(
+                    convert_datetime_to_seconds(
+                        val
+                    )
+                )
+
+        # standard behavior
         else:
+
             vals.append(feat.GetField(dimension['index']))
         
     return vals
@@ -519,7 +521,7 @@ def convert_layer(layer, file_table):
         pc_schema = build_pc_schema(fields)
 
         # add schema to database
-        pcid = add_pc_schema(pc_schema, srid)
+        pcid = add_pc_schema(DBConn, pc_schema, srid)
 
     # do the actual import
     import_layer(layer, file_table, pcid, fields)
