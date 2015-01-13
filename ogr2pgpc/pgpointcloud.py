@@ -12,15 +12,15 @@ DATA_TYPE_MAPPING = {
         'size': 8
     },
     ogr.OFTDate: {
-        'interpretation': 'int64_t',
+        'interpretation': 'double',
         'size': 8
     },
     ogr.OFTTime: {
-        'interpretation': 'int64_t',
+        'interpretation': 'double',
         'size': 8
     },
     ogr.OFTDateTime: {
-        'interpretation': 'int64_t',
+        'interpretation': 'double',
         'size': 8
     }
 }

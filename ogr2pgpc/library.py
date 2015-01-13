@@ -134,11 +134,18 @@ def interpret_fields(layer):
 
                 if found:
 
+                    if treat_as == 'date':
+                        dest = DATA_TYPE_MAPPING[ogr.OFTDate]
+                    elif treat_as == 'date':
+                        dest = DATA_TYPE_MAPPING[ogr.OFTTime]
+                    elif treat_as == 'datetime':
+                        dest = DATA_TYPE_MAPPING[ogr.OFTDateTime]
+
                     fldInfo['type'] = {
                         'treat_as': treat_as,
                         'callback': details['callback'],
-                        'source': None,
-                        'dest': DATA_TYPE_MAPPING[fldType],
+                        'source': fldType,
+                        'dest': dest,
                     }
                     fields['dimension'].append(fldInfo)
 
@@ -287,6 +294,7 @@ ON COMMIT DROP;
 def convert_date_to_seconds(the_date):
     '''
     convert date to number of seconds UTC from UNIX epoch
+    value is a decimal to capture milliseconds
     '''
 
     return (
@@ -297,6 +305,7 @@ def convert_date_to_seconds(the_date):
 def convert_time_to_seconds(the_time):
     '''
     convert time to number of seconds UTC from 00:00:00 UTC
+    value is a decimal to capture milliseconds
     '''
 
     return (
@@ -307,6 +316,7 @@ def convert_time_to_seconds(the_time):
 def convert_datetime_to_seconds(the_datetime):
     '''
     convert datetime to number of seconds UTC from UNIX epoch
+    value is a decimal to capture milliseconds
     '''
 
     return (
@@ -331,6 +341,45 @@ def build_pcpoint_from_feature(feat, fields):
 
             func = getattr(geom, 'Get' + dimension['name'])
             vals.append(func())
+
+        # processing override
+        elif 'treat_as' in dimension['type']:
+
+            val = feat.GetField(dimension['index'])
+            treat_as = dimension['type']['treat_as']
+            callback = dimension['type']['callback']
+
+            if treat_as == 'date':
+
+                vals.append(
+                    convert_date_to_seconds(
+                        callback(val)
+                    )
+                )
+
+            elif treat_as == 'time':
+
+                val = callback(val).time()
+                if val.tzinfo is None:
+                    val = localtz.localize(val)
+
+                vals.append(
+                    convert_time_to_seconds(
+                        val
+                    )
+                )
+
+            elif treat_as == 'datetime':
+
+                val = callback(val)
+                if val.tzinfo is None:
+                    val = localtz.localize(val)
+
+                vals.append(
+                    convert_datetime_to_seconds(
+                        val
+                    )
+                )
 
         # OGR date, time or datetime
         elif dimension['type']['source'] in [
@@ -368,46 +417,6 @@ def build_pcpoint_from_feature(feat, fields):
                 vals.append(
                     convert_datetime_to_seconds(
                         datetime.datetime(*val[0:6], tzinfo=tz)
-                    )
-                )
-
-        elif (
-            dimension['type']['source'] is None and
-            'treat_as' in dimension['type']
-        ):
-            val = feat.GetField(dimension['index'])
-            treat_as = dimension['type']['treat_as']
-            callback = dimension['type']['callback']
-
-            if treat_as == 'date':
-
-                vals.append(
-                    convert_date_to_seconds(
-                        callback(val).date()
-                    )
-                )
-
-            elif treat_as == 'time':
-
-                val = callback(val).time()
-                if val.tzinfo is None:
-                    val = localtz.localize(val)
-
-                vals.append(
-                    convert_time_to_seconds(
-                        val
-                    )
-                )
-
-            elif treat_as == 'datetime':
-
-                val = callback(val)
-                if val.tzinfo is None:
-                    val = localtz.localize(val)
-
-                vals.append(
-                    convert_datetime_to_seconds(
-                        val
                     )
                 )
 
