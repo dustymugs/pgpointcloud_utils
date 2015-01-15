@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import argparse
+import pytz
 
 from ogr2pgpc.library import ogr_to_pgpointcloud
 
@@ -101,7 +102,7 @@ def _init_argparser():
 
 def process_args(args):
 
-    return {
+    config = {
         'input_file': getattr(args, 'input_file', None),
         'dsn': getattr(args, 'dsn', None),
         'group_by': getattr(args, 'group_by', []),
@@ -115,6 +116,11 @@ def process_args(args):
         'datetime': getattr(args, 'datetime', []),
         'timezone': getattr(args, 'timezone', None),
     }
+
+    if config['timezone'] is not None:
+        config['timezone'] = pytz.timezone(config['timezone'])
+
+    return config
 
 def run(args):
 
