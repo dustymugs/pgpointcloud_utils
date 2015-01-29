@@ -6,19 +6,17 @@ import pytz
 
 import os
 
-import simplejson as json
-#import hashlib
 import psycopg2
 from psycopg2.extensions import AsIs
 from osgeo import ogr, osr
 import argparse
 
-import random
-
 from .ogr import OGR_TZ
 from .pgpointcloud import (
     DATA_TYPE_MAPPING,
-    build_pc_dimension, build_pc_schema, add_pc_schema
+    build_pc_dimension, build_pc_schema, add_pc_schema,
+    create_pcpatch_table, create_temp_table,
+    insert_pcpoint, insert_pcpatches
 )
 
 COORDINATES = ['X', 'Y', 'Z']
@@ -32,6 +30,7 @@ OVERRIDE_INPUT_FORMAT = [
 Config = {
     'input_file': None,
     'dsn': None,
+    'metadata': [],
     'group_by': [],
     'ignore': [],
     'layer': [],
@@ -269,36 +268,7 @@ def extract_group(feat, fields):
         group_list.append(feat.GetField(fields['group_by'][idx]['index']))
         group_dict[fields['group_by'][idx]['name']] = group_list[-1]
 
-    #return hashlib.md5(json.dumps(group_list)).hexdigest(), group_dict
     return group_dict
-
-def create_temp_table():
-
-    table_name = (
-        'temp_' +
-        ''.join(random.choice('0123456789abcdefghijklmnopqrstuvwxyz') for i in range(16))
-    )
-
-    cursor = DBConn.cursor()
-
-    try:
-
-        cursor.execute("""
-CREATE TEMPORARY TABLE "%s" (
-    id BIGSERIAL PRIMARY KEY,
-    pt PCPOINT,
-    group_by TEXT
-)
-ON COMMIT DROP;
-        """, [AsIs(table_name)])
-
-    except psycopg2.Error:
-        DBConn.rollback()
-        raise
-    finally:
-        cursor.close()
-
-    return table_name
 
 def convert_date_to_seconds(the_date):
     '''
@@ -468,70 +438,12 @@ def build_pcpoint_from_feature(feat, fields):
         
     return vals
 
-def insert_pcpoint(table_name, pcid, group, vals):
-
-    cursor = DBConn.cursor()
-
-    try:
-
-        group_str = json.dumps(group)
-
-        cursor.execute("""
-INSERT INTO "%s" (pt, group_by)
-VALUES (PC_MakePoint(%s, %s), %s)
-        """, [
-            AsIs(table_name),
-            pcid,
-            vals,
-            group_str
-        ])
-
-    except psycopg2.Error:
-        DBConn.rollback()
-        raise
-    finally:
-        cursor.close()
-
-def insert_pcpatches(file_table, temp_table, layer):
-
-    layer_name = layer.GetName()
-
-    cursor = DBConn.cursor()
-
-    try:
-
-        cursor.execute("""
-INSERT INTO "%s" (layer_name, group_by, pa) 
-SELECT
-    layer_name,
-    group_by::json,
-    pa
-FROM (
-    SELECT
-        %s AS layer_name,
-        group_by,
-        PC_Patch(pt) AS pa
-    FROM "%s"
-    GROUP BY 1, 2
-) sub
-        """, [
-            AsIs(file_table),
-            layer_name,
-            AsIs(temp_table),
-        ])
-
-    except psycopg2.Error:
-        DBConn.rollback()
-        raise
-    finally:
-        cursor.close()
-
 def import_layer(layer, file_table, pcid, fields):
 
     num_features = layer.GetFeatureCount()
 
     # create temporary table for layer
-    temp_table = create_temp_table()
+    temp_table = create_temp_table(DBConn)
 
     # iterate over features
     for idx in xrange(num_features):
@@ -545,10 +457,16 @@ def import_layer(layer, file_table, pcid, fields):
         vals = build_pcpoint_from_feature(feat, fields)
 
         # insert
-        insert_pcpoint(temp_table, pcid, group, vals)
+        insert_pcpoint(DBConn, temp_table, pcid, group, vals)
 
     # build patches for layer by distinct group
-    insert_pcpatches(file_table, temp_table, layer)
+    insert_pcpatches(
+        DBConn,
+        file_table,
+        temp_table,
+        layer,
+        Config.get('metadata', None)
+    )
 
     return True
 
@@ -583,55 +501,18 @@ def convert_layer(layer, file_table):
         srid
     )
 
-def create_file_table():
+def convert_file():
 
     table_name = Config.get('table_name', None)
     if table_name is None:
         table_name = os.path.splitext(os.path.basename(DSIn.name))[0]
+    table_action = Config.get('table_action', 'c')[0]
 
-    cursor = DBConn.cursor()
-
-    action = Config.get('table_action', 'c')[0]
-
-    try:
-
-        # append to existing table, check that table exists
-        if action == 'a':
-            try:
-                cursor.execute("""
-SELECT 1 FROM "%s"
-                """, [AsIs(table_name)])
-            except psycopg2.Error:
-                raise Exception('Table not found: %s' % table_name)
-
-            return table_name
-
-        # drop table
-        if action == 'd':
-            cursor.execute("""
-DROP TABLE IF EXISTS "%s"
-            """, [AsIs(table_name)])
-
-        cursor.execute("""
-CREATE TABLE "%s" (
-    id BIGSERIAL PRIMARY KEY,
-    pa PCPATCH,
-    layer_name TEXT,
-    group_by JSON
-)
-        """, [AsIs(table_name)])
-
-    except psycopg2.Error:
-        DBConn.rollback()
-        raise
-    finally:
-        cursor.close()
-
-    return table_name
-
-def convert_file():
-
-    file_table = create_file_table()
+    create_pcpatch_table(
+        DBConn,
+        table_name,
+        table_action
+    )
 
     num_layers = DSIn.GetLayerCount()
     if num_layers < 1:
@@ -653,7 +534,7 @@ def convert_file():
         if not layer:
             raise
 
-        convert_layer(layer, file_table)
+        convert_layer(layer, table_name)
 
 def ogr_to_pgpointcloud(config):
 

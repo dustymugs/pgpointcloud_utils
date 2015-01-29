@@ -8,6 +8,16 @@ from ogr2pgpc.library import ogr_to_pgpointcloud
 def _init_argparser():
 
     arg_parser = argparse.ArgumentParser()
+
+    arg_parser.add_argument(
+        '-m', '--metadata',
+        action='append',
+        dest='metadata',
+        default=[],
+        help="""Metadata outside the OGR file to include
+        with generated PCPatches"""
+    )
+
     arg_parser.add_argument(
         '-g', '--group-by',
         action='append',
@@ -113,6 +123,7 @@ def process_args(args):
     config = {
         'input_file': getattr(args, 'input_file', None),
         'dsn': getattr(args, 'dsn', None),
+        'metadata': getattr(args, 'metadata', []),
         'group_by': getattr(args, 'group_by', []),
         'ignore': getattr(args, 'ignore', []),
         'layer': getattr(args, 'layer', []),

@@ -1,5 +1,11 @@
+import psycopg2
+from psycopg2.extensions import AsIs
+
 from osgeo import ogr
 from xml.etree import ElementTree as ETree
+
+import random
+import simplejson as json
 
 # mapping between OGR datatypes and pgPointCloud datatypes
 DATA_TYPE_MAPPING = {
@@ -178,3 +184,141 @@ def add_pc_schema(dbconn, pc_schema, srid=0):
 
     return pcid
 
+def create_pcpatch_table(dbconn, table_name, table_action):
+
+    cursor = dbconn.cursor()
+
+    try:
+
+        # append to existing table, check that table exists
+        if table_action == 'a':
+            try:
+                cursor.execute("""
+SELECT 1 FROM "%s"
+                """, [AsIs(table_name)])
+            except psycopg2.Error:
+                raise Exception('Table not found: %s' % table_name)
+
+            return
+
+        # drop table
+        if table_action == 'd':
+            cursor.execute("""
+DROP TABLE IF EXISTS "%s"
+            """, [AsIs(table_name)])
+
+        cursor.execute("""
+CREATE TABLE "%s" (
+    id BIGSERIAL PRIMARY KEY,
+    pa PCPATCH,
+    layer_name TEXT,
+    group_by JSON,
+    metadata JSON
+)
+        """, [AsIs(table_name)])
+
+    except psycopg2.Error:
+        dbconn.rollback()
+        raise
+    finally:
+        cursor.close()
+
+def insert_pcpoint(dbconn, table_name, pcid, group, vals):
+
+    cursor = dbconn.cursor()
+
+    try:
+
+        group_str = json.dumps(group)
+
+        cursor.execute("""
+INSERT INTO "%s" (pt, group_by)
+VALUES (PC_MakePoint(%s, %s), %s)
+        """, [
+            AsIs(table_name),
+            pcid,
+            vals,
+            group_str
+        ])
+
+    except psycopg2.Error:
+        dbconn.rollback()
+        raise
+    finally:
+        cursor.close()
+
+    return True
+
+def insert_pcpatches(dbconn, file_table, temp_table, layer, metadata=None):
+
+    layer_name = layer.GetName()
+
+    cursor = dbconn.cursor()
+
+    if metadata:
+        # try to be nice with json metadata
+        for idx in xrange(len(metadata)):
+            try:
+                metadata[idx] = json.loads(metadata[idx])
+            except json.JSONDecodeError:
+                pass
+
+    try:
+
+        cursor.execute("""
+INSERT INTO "%s" (layer_name, group_by, metadata, pa) 
+SELECT
+    layer_name,
+    group_by::json,
+    %s::json,
+    pa
+FROM (
+    SELECT
+        %s AS layer_name,
+        group_by,
+        PC_Patch(pt) AS pa
+    FROM "%s"
+    GROUP BY 1, 2
+) sub
+        """, [
+            AsIs(file_table),
+            json.dumps(metadata),
+            layer_name,
+            AsIs(temp_table),
+        ])
+
+    except psycopg2.Error:
+        dbconn.rollback()
+        raise
+    finally:
+        cursor.close()
+
+    return True
+
+def create_temp_table(dbconn):
+
+    table_name = (
+        'temp_' +
+        ''.join(random.choice('0123456789abcdefghijklmnopqrstuvwxyz') for i in range(16))
+    )
+
+    cursor = dbconn.cursor()
+
+    try:
+
+        cursor.execute("""
+CREATE TEMPORARY TABLE "%s" (
+    id BIGSERIAL PRIMARY KEY,
+    pt PCPOINT,
+    group_by TEXT
+)
+ON COMMIT DROP;
+        """, [AsIs(table_name)])
+
+    except psycopg2.Error:
+        dbconn.rollback()
+        raise
+    finally:
+        cursor.close()
+
+    return table_name
