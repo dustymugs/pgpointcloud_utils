@@ -33,6 +33,7 @@ Config = {
     'input_file': None,
     'dsn': None,
     'group_by': [],
+    'ignore': [],
     'layer': [],
     'srid': None,
     'pcid': None,
@@ -94,6 +95,7 @@ def interpret_fields(layer):
     numFields = feat.GetFieldCount()
 
     group_by = Config.get('group_by', [])
+    ignore = Config.get('ignore', [])
 
     # date, time, datetime overrides
     overrides = {}
@@ -115,6 +117,11 @@ def interpret_fields(layer):
         }
 
         fldType = fldDef.GetType()
+
+        # field in ignore list
+        if fldInfo['name'] in ignore:
+            fields['ignore'].append(fldInfo)
+            continue
 
         # user-defined group_by list and field in that list 
         if group_by and fldInfo['name'] in group_by:
@@ -157,7 +164,7 @@ def interpret_fields(layer):
 
             # add field to internal ignore list
             else:
-                fields['ignore'].append(idx)
+                fields['ignore'].append(fldInfo)
         # field is supported
         elif fldType in DATA_TYPE_MAPPING:
             fldInfo['type'] = {
