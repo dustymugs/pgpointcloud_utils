@@ -249,7 +249,97 @@ VALUES (PC_MakePoint(%s, %s), %s)
 
     return True
 
-def insert_pcpatches(dbconn, file_table, temp_table, layer, metadata=None):
+def _compute_patch_size(dbconn, temp_table, max_points_per_patch=400):
+
+    import pudb;pudb.set_trace()
+
+    patch_size = 50
+    size_step = 25
+    within_count = 20
+
+    def get_max_points(cursor, temp_table, dim):
+        cursor.execute("""
+WITH raw_extent AS (
+	SELECT
+		ST_Envelope(ST_Collect(pt::geometry)) AS shp
+	FROM "%s"
+), utmzone AS (
+	SELECT
+		utmzone(ST_Centroid(shp)) AS srid
+	FROM raw_extent
+), points AS (
+	SELECT
+		ST_Transform(pt::geometry, srid) AS pt
+	FROM "%s"
+	JOIN utmzone
+		ON true
+), extent AS (
+	SELECT
+		ST_Transform(shp::geometry, srid) AS shp
+	FROM raw_extent
+	JOIN utmzone
+		ON true
+), cells AS (
+    SELECT
+	    ST_Centroid(ST_Collect(pt)) AS shp,
+    	count(points.*) AS pt_count
+    FROM points
+    JOIN extent
+	    ON true
+    GROUP BY ST_SnapToGrid(pt, ST_XMin(extent.shp), ST_YMax(extent.shp), %s, %s)
+)
+SELECT
+    max(pt_count) AS max_pts
+FROM cells
+        """ % (
+            AsIs(temp_table),
+            AsIs(temp_table),
+            dim,
+            dim
+        ))
+
+        return cursor.fetchone()[0]
+
+    def get_gradient(cursor, temp_table, dim, prior_max_points):
+        max_points = get_max_points(cursor, temp_table, dim)
+        delta = (max_points - prior_max_points) / float(prior_max_points)
+        return delta, max_points
+
+    patch_info = dict(
+        x=None,
+        y=None,
+        width=None,
+        height=None
+    )
+
+    cursor = dbconn.cursor()
+
+    try:
+
+        prior_max_points = get_max_points(cursor, temp_table, patch_size)
+
+        delta = 1.
+        while abs(prior_max_points - max_points_per_patch) > within_count:
+
+            if delta == 0.:
+                delta = 1.
+
+            patch_size = int(patch_size - size_step * delta)
+
+            delta, prior_max_points = get_gradient(cursor, temp_table, patch_size, prior_max_points)
+
+    except psycopg2.Error:
+        dbconn.rollback()
+        raise
+    finally:
+        cursor.close()
+
+    return patch_info
+
+def insert_pcpatches(
+    dbconn, file_table, temp_table, layer,
+    metadata=None, max_points_per_patch=400
+):
 
     layer_name = layer.GetName()
 
@@ -306,6 +396,7 @@ def create_temp_table(dbconn):
 
     try:
 
+        '''
         cursor.execute("""
 CREATE TEMPORARY TABLE "%s" (
     id BIGSERIAL PRIMARY KEY,
@@ -313,6 +404,14 @@ CREATE TEMPORARY TABLE "%s" (
     group_by TEXT
 )
 ON COMMIT DROP;
+        """, [AsIs(table_name)])
+        '''
+        cursor.execute("""
+CREATE TABLE "%s" (
+    id BIGSERIAL PRIMARY KEY,
+    pt PCPOINT,
+    group_by TEXT
+);
         """, [AsIs(table_name)])
 
     except psycopg2.Error:
