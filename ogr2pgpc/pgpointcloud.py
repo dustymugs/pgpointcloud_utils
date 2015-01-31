@@ -4,6 +4,7 @@ from psycopg2.extensions import AsIs
 from osgeo import ogr
 from xml.etree import ElementTree as ETree
 
+import math
 import random
 import simplejson as json
 
@@ -134,17 +135,22 @@ SELECT count(*) FROM pointcloud_formats
         cursor.execute("""
 WITH foo AS (
 SELECT
-	pcid,
-	lead(pcid, 1, NULL) OVER (ORDER BY pcid DESC),
-	pcid - lead(pcid, 1, NULL) OVER (ORDER BY pcid DESC) AS dist
+    pcid,
+    lead(pcid, 1, NULL) OVER (ORDER BY pcid DESC),
+    pcid - lead(pcid, 1, NULL) OVER (ORDER BY pcid DESC) AS dist
 FROM pointcloud_formats
 ORDER BY pcid DESC
 )
 SELECT
-	foo.pcid - 1 AS next_pcid
+    foo.pcid - 1 AS next_pcid
 FROM foo
 WHERE (foo.dist > 1 OR foo.dist IS NULL)
-	AND (SELECT count(*) FROM pointcloud_formats AS srs WHERE srs.pcid = foo.pcid - 1) < 1
+    AND (
+        SELECT
+            count(*)
+        FROM pointcloud_formats AS srs
+        WHERE srs.pcid = foo.pcid - 1
+    ) < 1
 ORDER BY foo.pcid DESC
 LIMIT 1
         """)
@@ -249,84 +255,138 @@ VALUES (PC_MakePoint(%s, %s), %s)
 
     return True
 
-def _compute_patch_size(dbconn, temp_table, max_points_per_patch=400):
-
-    import pudb;pudb.set_trace()
-
-    patch_size = 50
-    size_step = 25
-    within_count = 20
-
-    def get_max_points(cursor, temp_table, dim):
+def get_extent_corners(cursor, table_name, in_utm=True):
+    if not in_utm:
         cursor.execute("""
-WITH raw_extent AS (
-	SELECT
-		ST_Envelope(ST_Collect(pt::geometry)) AS shp
-	FROM "%s"
-), utmzone AS (
-	SELECT
-		utmzone(ST_Centroid(shp)) AS srid
-	FROM raw_extent
-), points AS (
-	SELECT
-		ST_Transform(pt::geometry, srid) AS pt
-	FROM "%s"
-	JOIN utmzone
-		ON true
-), extent AS (
-	SELECT
-		ST_Transform(shp::geometry, srid) AS shp
-	FROM raw_extent
-	JOIN utmzone
-		ON true
-), cells AS (
+WITH extent AS (
     SELECT
-	    ST_Centroid(ST_Collect(pt)) AS shp,
-    	count(points.*) AS pt_count
-    FROM points
-    JOIN extent
-	    ON true
-    GROUP BY ST_SnapToGrid(pt, ST_XMin(extent.shp), ST_YMax(extent.shp), %s, %s)
+        ST_Envelope(ST_Collect(pt::geometry)) AS shp
+    FROM "%s"
 )
 SELECT
-    max(pt_count) AS max_pts
-FROM cells
+    ST_XMin(shp),
+    ST_YMax(shp),
+    ST_XMax(shp),
+    ST_YMin(shp)
+FROM extent
+        """ % (
+            AsIs(table_name)
+        ))
+    else:
+        cursor.execute("""
+WITH raw_extent AS (
+    SELECT
+        ST_Envelope(ST_Collect(pt::geometry)) AS shp
+    FROM "%s"
+), utmzone AS (
+    SELECT
+        utmzone(ST_Centroid(shp)) AS srid
+    FROM raw_extent
+), extent AS (
+    SELECT
+        ST_Transform(shp::geometry, srid) AS shp
+    FROM raw_extent
+    JOIN utmzone
+        ON true
+)
+SELECT
+    ST_XMin(shp),
+    ST_YMax(shp),
+    ST_XMax(shp),
+    ST_YMin(shp)
+FROM extent
+        """ % (
+            AsIs(table_name)
+        ))
+
+    return cursor.fetchone()
+
+def _compute_patch_size(dbconn, temp_table, max_points_per_patch=400):
+
+    def get_patch_count(cursor, temp_table, dim, max_points):
+        cursor.execute("""
+WITH raw_extent AS (
+    SELECT
+        ST_Envelope(ST_Collect(pt::geometry)) AS shp
+    FROM "%s"
+), utmzone AS (
+    SELECT
+        utmzone(ST_Centroid(shp)) AS srid
+    FROM raw_extent
+), points AS (
+    SELECT
+        ST_Transform(pt::geometry, srid) AS geom
+    FROM "%s"
+    JOIN utmzone
+        ON true
+), extent AS (
+    SELECT
+        ST_Transform(shp::geometry, srid) AS shp
+    FROM raw_extent
+    JOIN utmzone
+        ON true
+)
+SELECT
+    ST_Centroid(ST_Collect(geom)) AS shp,
+    count(points.*) AS geom_count
+FROM points
+JOIN extent
+    ON true
+GROUP BY ST_SnapToGrid(geom, ST_XMin(extent.shp), ST_YMax(extent.shp), %s, %s)
+HAVING count(points.*) > %s
         """ % (
             AsIs(temp_table),
             AsIs(temp_table),
             dim,
-            dim
+            dim,
+            max_points
         ))
 
-        return cursor.fetchone()[0]
-
-    def get_gradient(cursor, temp_table, dim, prior_max_points):
-        max_points = get_max_points(cursor, temp_table, dim)
-        delta = (max_points - prior_max_points) / float(prior_max_points)
-        return delta, max_points
-
-    patch_info = dict(
-        x=None,
-        y=None,
-        width=None,
-        height=None
-    )
+        return cursor.rowcount
 
     cursor = dbconn.cursor()
 
     try:
 
-        prior_max_points = get_max_points(cursor, temp_table, patch_size)
+        ulx, uly, lrx, lry = get_extent_corners(cursor, temp_table)
+        width = lrx - ulx
+        height = uly - lry
 
-        delta = 1.
-        while abs(prior_max_points - max_points_per_patch) > within_count:
+        # starting patch size in meters (due to UTM zone usage)
+        patch_size = int(max(width / 10., height / 10.))
 
-            if delta == 0.:
-                delta = 1.
+        old_patch_size = 0
+        old_patch_count = 0
+        delta = None
+        in_long_tail = False
 
-            patch_size = int(patch_size - size_step * delta)
+        while True:
 
-            delta, prior_max_points = get_gradient(cursor, temp_table, patch_size, prior_max_points)
+            patch_count = \
+                get_patch_count(cursor, temp_table, patch_size, max_points_per_patch)
+
+            if abs(patch_size - old_patch_size) <= 1:
+                if patch_count == 0:
+                    if patch_size > old_patch_size:
+                        in_long_tail = True
+                elif old_patch_count == 0:
+                    patch_size = old_patch_size
+                    break
+            elif in_long_tail and patch_count > 0 and old_patch_count == 0:
+                patch_size = old_patch_size
+                break
+
+            delta = max(abs(patch_size - old_patch_size) / 2, 1)
+            if patch_count > 0:
+                delta *= -1
+
+            old_patch_size = patch_size
+            patch_size += delta
+
+            old_patch_count = patch_count
+
+        cols = int(math.ceil(width / patch_size))
+        rows = int(math.ceil(height / patch_size))
 
     except psycopg2.Error:
         dbconn.rollback()
@@ -334,7 +394,7 @@ FROM cells
     finally:
         cursor.close()
 
-    return patch_info
+    return patch_size
 
 def insert_pcpatches(
     dbconn, file_table, temp_table, layer,
@@ -354,8 +414,32 @@ def insert_pcpatches(
                 pass
 
     try:
+        patch_size = _compute_patch_size(dbconn, temp_table, max_points_per_patch)
 
         cursor.execute("""
+WITH raw_extent AS (
+    SELECT
+        ST_Envelope(ST_Collect(pt::geometry)) AS shp
+    FROM "%s"
+), utmzone AS (
+    SELECT
+        utmzone(ST_Centroid(shp)) AS srid
+    FROM raw_extent
+), points AS (
+    SELECT
+        ST_Transform(pt::geometry, srid) AS geom,
+        pt,
+        group_by
+    FROM "%s"
+    JOIN utmzone
+        ON true
+), extent AS (
+    SELECT
+        ST_Transform(shp::geometry, srid) AS shp
+    FROM raw_extent
+    JOIN utmzone
+        ON true
+)
 INSERT INTO "%s" (layer_name, group_by, metadata, pa) 
 SELECT
     layer_name,
@@ -367,14 +451,19 @@ FROM (
         %s AS layer_name,
         group_by,
         PC_Patch(pt) AS pa
-    FROM "%s"
-    GROUP BY 1, 2
+    FROM points
+    JOIN extent
+        ON true
+    GROUP BY group_by, ST_SnapToGrid(geom, ST_XMin(extent.shp), ST_YMax(extent.shp), %s, %s)
 ) sub
         """, [
+            AsIs(temp_table),
+            AsIs(temp_table),
             AsIs(file_table),
             json.dumps(metadata),
             layer_name,
-            AsIs(temp_table),
+            patch_size,
+            patch_size
         ])
 
     except psycopg2.Error:
