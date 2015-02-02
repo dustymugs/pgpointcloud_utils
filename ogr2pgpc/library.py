@@ -505,7 +505,11 @@ def convert_file():
 
     table_name = Config.get('table_name', None)
     if table_name is None:
-        table_name = os.path.splitext(os.path.basename(DSIn.name))[0]
+        table_name = '"' + os.path.splitext(os.path.basename(DSIn.name))[0] + '"'
+    else:
+        # qualify
+        table_name = '"' + '"."'.join(table_name.split('.', 1)) + '"'
+
     table_action = Config.get('table_action', 'c')[0]
 
     create_pcpatch_table(

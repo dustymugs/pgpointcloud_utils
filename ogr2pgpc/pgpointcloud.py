@@ -200,7 +200,7 @@ def create_pcpatch_table(dbconn, table_name, table_action):
         if table_action == 'a':
             try:
                 cursor.execute("""
-SELECT 1 FROM "%s"
+SELECT 1 FROM %s
                 """, [AsIs(table_name)])
             except psycopg2.Error:
                 raise Exception('Table not found: %s' % table_name)
@@ -210,11 +210,11 @@ SELECT 1 FROM "%s"
         # drop table
         if table_action == 'd':
             cursor.execute("""
-DROP TABLE IF EXISTS "%s"
+DROP TABLE IF EXISTS %s
             """, [AsIs(table_name)])
 
         cursor.execute("""
-CREATE TABLE "%s" (
+CREATE TABLE %s (
     id BIGSERIAL PRIMARY KEY,
     pa PCPATCH,
     layer_name TEXT,
@@ -238,7 +238,7 @@ def insert_pcpoint(dbconn, table_name, pcid, group, vals):
         group_str = json.dumps(group)
 
         cursor.execute("""
-INSERT INTO "%s" (pt, group_by)
+INSERT INTO %s (pt, group_by)
 VALUES (PC_MakePoint(%s, %s), %s)
         """, [
             AsIs(table_name),
@@ -261,7 +261,7 @@ def get_extent_corners(cursor, table_name, in_utm=True):
 WITH extent AS (
     SELECT
         ST_Envelope(ST_Collect(pt::geometry)) AS shp
-    FROM "%s"
+    FROM %s
 )
 SELECT
     ST_XMin(shp),
@@ -277,7 +277,7 @@ FROM extent
 WITH raw_extent AS (
     SELECT
         ST_Envelope(ST_Collect(pt::geometry)) AS shp
-    FROM "%s"
+    FROM %s
 ), utmzone AS (
     SELECT
         utmzone(ST_Centroid(shp)) AS srid
@@ -308,7 +308,7 @@ def _compute_patch_size(dbconn, temp_table, max_points_per_patch=400):
 WITH raw_extent AS (
     SELECT
         ST_Envelope(ST_Collect(pt::geometry)) AS shp
-    FROM "%s"
+    FROM %s
 ), utmzone AS (
     SELECT
         utmzone(ST_Centroid(shp)) AS srid
@@ -316,7 +316,7 @@ WITH raw_extent AS (
 ), points AS (
     SELECT
         ST_Transform(pt::geometry, srid) AS geom
-    FROM "%s"
+    FROM %s
     JOIN utmzone
         ON true
 ), extent AS (
@@ -420,7 +420,7 @@ def insert_pcpatches(
 WITH raw_extent AS (
     SELECT
         ST_Envelope(ST_Collect(pt::geometry)) AS shp
-    FROM "%s"
+    FROM %s
 ), utmzone AS (
     SELECT
         utmzone(ST_Centroid(shp)) AS srid
@@ -430,7 +430,7 @@ WITH raw_extent AS (
         ST_Transform(pt::geometry, srid) AS geom,
         pt,
         group_by
-    FROM "%s"
+    FROM %s
     JOIN utmzone
         ON true
 ), extent AS (
@@ -440,7 +440,7 @@ WITH raw_extent AS (
     JOIN utmzone
         ON true
 )
-INSERT INTO "%s" (layer_name, group_by, metadata, pa) 
+INSERT INTO %s (layer_name, group_by, metadata, pa) 
 SELECT
     layer_name,
     group_by::json,
@@ -480,27 +480,19 @@ def create_temp_table(dbconn):
         'temp_' +
         ''.join(random.choice('0123456789abcdefghijklmnopqrstuvwxyz') for i in range(16))
     )
+    table_name = '"' + table_name + '"'
 
     cursor = dbconn.cursor()
 
     try:
 
-        '''
         cursor.execute("""
-CREATE TEMPORARY TABLE "%s" (
+CREATE TEMPORARY TABLE %s (
     id BIGSERIAL PRIMARY KEY,
     pt PCPOINT,
     group_by TEXT
 )
 ON COMMIT DROP;
-        """, [AsIs(table_name)])
-        '''
-        cursor.execute("""
-CREATE TABLE "%s" (
-    id BIGSERIAL PRIMARY KEY,
-    pt PCPOINT,
-    group_by TEXT
-);
         """, [AsIs(table_name)])
 
     except psycopg2.Error:
