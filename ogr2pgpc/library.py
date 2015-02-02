@@ -30,7 +30,7 @@ OVERRIDE_INPUT_FORMAT = [
 Config = {
     'input_file': None,
     'dsn': None,
-    'metadata': [],
+    'metadata': None,
     'group_by': [],
     'ignore': [],
     'layer': [],
@@ -510,7 +510,10 @@ def convert_file():
         # qualify
         table_name = '"' + '"."'.join(table_name.split('.', 1)) + '"'
 
-    table_action = Config.get('table_action', 'c')[0]
+    table_action = Config.get('table_action', 'c')
+    if table_action is None:
+        table_action = 'c'
+    table_action = table_action[0]
 
     create_pcpatch_table(
         DBConn,

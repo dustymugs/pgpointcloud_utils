@@ -123,7 +123,7 @@ def process_args(args):
     config = {
         'input_file': getattr(args, 'input_file', None),
         'dsn': getattr(args, 'dsn', None),
-        'metadata': getattr(args, 'metadata', []),
+        'metadata': getattr(args, 'metadata', None),
         'group_by': getattr(args, 'group_by', []),
         'ignore': getattr(args, 'ignore', []),
         'layer': getattr(args, 'layer', []),

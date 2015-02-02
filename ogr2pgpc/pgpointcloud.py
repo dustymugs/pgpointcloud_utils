@@ -186,7 +186,7 @@ def add_pc_schema(dbconn, pc_schema, srid=0):
         pcid = _add_pc_schema(dbconn, pc_schema, srid)
 
         if count > max_count:
-            raise
+            raise Exception('Failed to add PC schema')
 
     return pcid
 
@@ -407,11 +407,10 @@ def insert_pcpatches(
 
     if metadata:
         # try to be nice with json metadata
-        for idx in xrange(len(metadata)):
-            try:
-                metadata[idx] = json.loads(metadata[idx])
-            except json.JSONDecodeError:
-                pass
+        try:
+            metadata = json.loads(metadata)
+        except json.JSONDecodeError:
+            pass
 
     try:
         patch_size = _compute_patch_size(dbconn, temp_table, max_points_per_patch)
