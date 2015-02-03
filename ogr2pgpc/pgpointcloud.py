@@ -8,6 +8,7 @@ import math
 import random
 import simplejson as json
 
+from cStringIO import StringIO
 import struct
 import binascii
 
@@ -115,9 +116,9 @@ def build_pc_schema(fields):
 
 def _add_pc_schema(dbconn, pc_schema, srid):
 
-    cursor = dbconn.cursor()
-
     try:
+
+        cursor = dbconn.cursor()
 
         # check if this schema already exists
         cursor.execute("""
@@ -201,9 +202,9 @@ def add_pc_schema(dbconn, pc_schema, srid=0):
 
 def create_pcpatch_table(dbconn, table_name, table_action):
 
-    cursor = dbconn.cursor()
-
     try:
+
+        cursor = dbconn.cursor()
 
         # append to existing table, check that table exists
         if table_action == 'a':
@@ -247,11 +248,11 @@ def make_wkb_point(pcid, frmt, vals):
 
 def insert_pcpoint(dbconn, table_name, wkb, group):
 
-    cursor = dbconn.cursor()
+    group_str = json.dumps(group)
 
     try:
 
-        group_str = json.dumps(group)
+        cursor = dbconn.cursor()
 
         cursor.execute("""
 INSERT INTO %s (pt, group_by)
@@ -261,6 +262,31 @@ VALUES ('%s'::pcpoint, %s)
             AsIs(wkb),
             group_str
         ])
+
+    except psycopg2.Error:
+        dbconn.rollback()
+        raise
+    finally:
+        cursor.close()
+
+    return True
+
+def copy_pcpoints(dbconn, table_name, wkb_set, group):
+
+    group_str = json.dumps(group)
+
+    f = StringIO(
+        '\n'.join([
+            '\t'.join([wkb, group_str])
+            for wkb in wkb_set
+        ])
+    )
+
+    try:
+
+        cursor = dbconn.cursor()
+
+        cursor.copy_from(f, table_name, columns=('pt', 'group_by'))
 
     except psycopg2.Error:
         dbconn.rollback()
@@ -359,9 +385,9 @@ HAVING count(points.*) > %s
 
         return cursor.rowcount
 
-    cursor = dbconn.cursor()
-
     try:
+
+        cursor = dbconn.cursor()
 
         ulx, uly, lrx, lry = get_extent_corners(cursor, temp_table)
         width = lrx - ulx
@@ -418,8 +444,6 @@ def insert_pcpatches(
 
     layer_name = layer.GetName()
 
-    cursor = dbconn.cursor()
-
     if metadata:
         # try to be nice with json metadata
         try:
@@ -428,7 +452,10 @@ def insert_pcpatches(
             pass
 
     try:
+
         patch_size = _compute_patch_size(dbconn, temp_table, max_points_per_patch)
+
+        cursor = dbconn.cursor()
 
         cursor.execute("""
 WITH raw_extent AS (
@@ -496,9 +523,9 @@ def create_temp_table(dbconn):
     )
     table_name = '"' + table_name + '"'
 
-    cursor = dbconn.cursor()
-
     try:
+
+        cursor = dbconn.cursor()
 
         cursor.execute("""
 CREATE TEMPORARY TABLE %s (

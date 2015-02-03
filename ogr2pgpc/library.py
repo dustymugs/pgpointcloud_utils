@@ -16,7 +16,7 @@ from .pgpointcloud import (
     DATA_TYPE_MAPPING,
     build_pc_dimension, build_pc_schema, add_pc_schema,
     create_pcpatch_table, create_temp_table,
-    insert_pcpoint, insert_pcpatches, make_wkb_point
+    copy_pcpoints, insert_pcpatches, make_wkb_point
 )
 
 COORDINATES = ['X', 'Y', 'Z']
@@ -215,9 +215,10 @@ def guess_layer_spatial_ref(layer):
 
 def _get_postgis_srid(proj4):
 
-    cursor = DBConn.cursor()
-
     try:
+
+        cursor = DBConn.cursor()
+
         cursor.execute("""
 SELECT
     srid
@@ -459,6 +460,7 @@ def import_layer(layer, file_table, pcid, fields):
     temp_table = create_temp_table(DBConn)
 
     frmt = None
+    wkb_set = []
 
     # iterate over features
     for idx in xrange(num_features):
@@ -475,10 +477,15 @@ def import_layer(layer, file_table, pcid, fields):
             vals = build_pcpoint_from_feature(feat, fields)
 
         # make wkb of pcpoint
-        wkb = make_wkb_point(pcid, frmt, vals)
+        wkb_set.append(make_wkb_point(pcid, frmt, vals))
 
-        # insert
-        insert_pcpoint(DBConn, temp_table, wkb, group)
+        if len(wkb_set) >= 1000:
+            copy_pcpoints(DBConn, temp_table, wkb_set, group)
+            wkb_set = []
+
+    if len(wkb_set) >= 0:
+        copy_pcpoints(DBConn, temp_table, wkb_set, group)
+        wkb_set = []
 
     # build patches for layer by distinct group
     insert_pcpatches(
