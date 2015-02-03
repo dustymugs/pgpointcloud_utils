@@ -16,7 +16,7 @@ from .pgpointcloud import (
     DATA_TYPE_MAPPING,
     build_pc_dimension, build_pc_schema, add_pc_schema,
     create_pcpatch_table, create_temp_table,
-    insert_pcpoint, insert_pcpatches
+    insert_pcpoint, insert_pcpatches, make_wkb_point
 )
 
 COORDINATES = ['X', 'Y', 'Z']
@@ -332,19 +332,22 @@ def convert_datetime_to_seconds(the_datetime):
         datetime.datetime(1970, 1, 1, tzinfo=pytz.UTC)
     ).total_seconds()
 
-def build_pcpoint_from_feature(feat, fields):
+def build_pcpoint_from_feature(feat, fields, struct_format=False):
 
     geom = feat.geometry()
     if geom.GetGeometryType() != ogr.wkbPoint:
         geom = geom.Centroid()
-
 
     localtz = Config.get('timezone')
     if localtz is None:
         localtz = get_localzone()
 
     vals = []
+    frmt = []
     for dimension in fields['dimension']:
+
+        if struct_format:
+            frmt.append(dimension['type']['dest']['struct'])
 
         # x, y, z dimension
         if dimension['name'] in COORDINATES:
@@ -434,9 +437,19 @@ def build_pcpoint_from_feature(feat, fields):
         # standard behavior
         else:
 
-            vals.append(feat.GetField(dimension['index']))
+            val = feat.GetField(dimension['index'])
+
+            # cast data if needed
+            func = dimension['type']['dest'].get('cast', None)
+            if func is not None:
+                val = func(val)
+
+            vals.append(val)
         
-    return vals
+    if struct_format:
+        return vals, ' '. join(frmt)
+    else:
+        return vals
 
 def import_layer(layer, file_table, pcid, fields):
 
@@ -444,6 +457,8 @@ def import_layer(layer, file_table, pcid, fields):
 
     # create temporary table for layer
     temp_table = create_temp_table(DBConn)
+
+    frmt = None
 
     # iterate over features
     for idx in xrange(num_features):
@@ -454,10 +469,16 @@ def import_layer(layer, file_table, pcid, fields):
         group = extract_group(feat, fields)
 
         # build pcpoint values
-        vals = build_pcpoint_from_feature(feat, fields)
+        if frmt is None:
+            vals, frmt = build_pcpoint_from_feature(feat, fields, True)
+        else:
+            vals = build_pcpoint_from_feature(feat, fields)
+
+        # make wkb of pcpoint
+        wkb = make_wkb_point(pcid, frmt, vals)
 
         # insert
-        insert_pcpoint(DBConn, temp_table, pcid, group, vals)
+        insert_pcpoint(DBConn, temp_table, wkb, group)
 
     # build patches for layer by distinct group
     insert_pcpatches(

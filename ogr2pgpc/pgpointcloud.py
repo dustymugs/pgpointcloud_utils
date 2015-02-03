@@ -8,28 +8,36 @@ import math
 import random
 import simplejson as json
 
+import struct
+import binascii
+
 # mapping between OGR datatypes and pgPointCloud datatypes
 DATA_TYPE_MAPPING = {
     ogr.OFTInteger: {
-        #'interpretation': 'int64_t',
         'interpretation': 'double',
-        'size': 8
+        'size': 8,
+        'cast': float,
+        'struct': 'd'
     },
     ogr.OFTReal: {
         'interpretation': 'double',
-        'size': 8
+        'size': 8,
+        'struct': 'd'
     },
     ogr.OFTDate: {
         'interpretation': 'double',
-        'size': 8
+        'size': 8,
+        'struct': 'd'
     },
     ogr.OFTTime: {
         'interpretation': 'double',
-        'size': 8
+        'size': 8,
+        'struct': 'd'
     },
     ogr.OFTDateTime: {
         'interpretation': 'double',
-        'size': 8
+        'size': 8,
+        'struct': 'd'
     }
 }
 
@@ -230,7 +238,14 @@ CREATE TABLE %s (
     finally:
         cursor.close()
 
-def insert_pcpoint(dbconn, table_name, pcid, group, vals):
+def make_wkb_point(pcid, frmt, vals):
+
+    values = [1, pcid] + vals
+    s = struct.Struct('< B I' + frmt)
+
+    return binascii.hexlify(s.pack(*values))
+
+def insert_pcpoint(dbconn, table_name, wkb, group):
 
     cursor = dbconn.cursor()
 
@@ -240,11 +255,10 @@ def insert_pcpoint(dbconn, table_name, pcid, group, vals):
 
         cursor.execute("""
 INSERT INTO %s (pt, group_by)
-VALUES (PC_MakePoint(%s, %s), %s)
+VALUES ('%s'::pcpoint, %s)
         """, [
             AsIs(table_name),
-            pcid,
-            vals,
+            AsIs(wkb),
             group_str
         ])
 

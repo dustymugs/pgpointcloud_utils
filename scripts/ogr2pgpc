@@ -11,9 +11,8 @@ def _init_argparser():
 
     arg_parser.add_argument(
         '-m', '--metadata',
-        action='append',
         dest='metadata',
-        default=[],
+        default=None,
         help="""Metadata outside the OGR file to include
         with generated PCPatches"""
     )
