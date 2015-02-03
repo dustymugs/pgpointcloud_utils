@@ -11,7 +11,8 @@ import simplejson as json
 # mapping between OGR datatypes and pgPointCloud datatypes
 DATA_TYPE_MAPPING = {
     ogr.OFTInteger: {
-        'interpretation': 'int64_t',
+        #'interpretation': 'int64_t',
+        'interpretation': 'double',
         'size': 8
     },
     ogr.OFTReal: {
