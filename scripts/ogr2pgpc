@@ -10,13 +10,19 @@ def _init_argparser():
     arg_parser = argparse.ArgumentParser()
 
     arg_parser.add_argument(
+        '-y', '--copy',
+        dest='copy_mode',
+        default=False,
+        action='store_true',
+        help="""Use COPY statements instead of INSERT statements"""
+    )
+    arg_parser.add_argument(
         '-m', '--metadata',
         dest='metadata',
         default=None,
         help="""Metadata outside the OGR file to include
         with generated PCPatches"""
     )
-
     arg_parser.add_argument(
         '-g', '--group-by',
         action='append',
@@ -134,6 +140,7 @@ def process_args(args):
         'time': getattr(args, 'time', []),
         'datetime': getattr(args, 'datetime', []),
         'timezone': getattr(args, 'timezone', None),
+        'copy_mode': getattr(args, 'copy_mode', False),
     }
 
     if config['timezone'] is not None:

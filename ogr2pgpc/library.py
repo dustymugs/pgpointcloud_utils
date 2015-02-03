@@ -16,7 +16,7 @@ from .pgpointcloud import (
     DATA_TYPE_MAPPING,
     build_pc_dimension, build_pc_schema, add_pc_schema,
     create_pcpatch_table, create_temp_table,
-    copy_pcpoints, insert_pcpatches, make_wkb_point
+    insert_pcpoints, copy_pcpoints, insert_pcpatches, make_wkb_point
 )
 
 COORDINATES = ['X', 'Y', 'Z']
@@ -480,7 +480,10 @@ def import_layer(layer, file_table, pcid, fields):
         wkb_set.append(make_wkb_point(pcid, frmt, vals))
 
         if len(wkb_set) >= 1000:
-            copy_pcpoints(DBConn, temp_table, wkb_set, group)
+            if Config.get('copy_mode') is True:
+                copy_pcpoints(DBConn, temp_table, wkb_set, group)
+            else:
+                insert_pcpoints(DBConn, temp_table, wkb_set, group)
             wkb_set = []
 
     if len(wkb_set) >= 0:

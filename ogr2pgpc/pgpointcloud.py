@@ -246,22 +246,30 @@ def make_wkb_point(pcid, frmt, vals):
 
     return binascii.hexlify(s.pack(*values))
 
-def insert_pcpoint(dbconn, table_name, wkb, group):
+def insert_pcpoints(dbconn, table_name, wkb_set, group):
 
     group_str = json.dumps(group)
+
+    values = [
+        [wkb, group_str]
+        for wkb in wkb_set
+    ]
 
     try:
 
         cursor = dbconn.cursor()
 
-        cursor.execute("""
+        statement = """
 INSERT INTO %s (pt, group_by)
-VALUES ('%s'::pcpoint, %s)
-        """, [
-            AsIs(table_name),
-            AsIs(wkb),
-            group_str
-        ])
+VALUES (%%s::pcpoint, %%s)
+        """ % (
+            AsIs(table_name)
+        )
+
+        cursor.executemany(
+            statement,
+            values
+        )
 
     except psycopg2.Error:
         dbconn.rollback()
