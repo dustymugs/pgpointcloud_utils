@@ -42,6 +42,7 @@ Config = {
     'time': [],
     'datetime': [],
     'timezone': get_localzone(),
+    'copy_mode': False
 }
 DSIn = None
 DBConn = None
