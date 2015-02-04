@@ -42,7 +42,8 @@ Config = {
     'time': [],
     'datetime': [],
     'timezone': get_localzone(),
-    'copy_mode': False
+    'copy_mode': False,
+    'buffer_size': 1000
 }
 DSIn = None
 DBConn = None
@@ -455,6 +456,9 @@ def build_pcpoint_from_feature(feat, fields, struct_format=False):
 
 def import_layer(layer, file_table, pcid, fields):
 
+    buffer_size = Config.get('buffer_size')
+    copy_mode = Config.get('copy_mode')
+
     num_features = layer.GetFeatureCount()
 
     # create temporary table for layer
@@ -480,8 +484,8 @@ def import_layer(layer, file_table, pcid, fields):
         # make wkb of pcpoint
         wkb_set.append(make_wkb_point(pcid, frmt, vals))
 
-        if len(wkb_set) >= 1000:
-            if Config.get('copy_mode') is True:
+        if len(wkb_set) >= buffer_size:
+            if copy_mode is True:
                 copy_pcpoints(DBConn, temp_table, wkb_set, group)
             else:
                 insert_pcpoints(DBConn, temp_table, wkb_set, group)

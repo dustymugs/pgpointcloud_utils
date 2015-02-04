@@ -17,6 +17,12 @@ def _init_argparser():
         help="""Use COPY statements instead of INSERT statements"""
     )
     arg_parser.add_argument(
+        '-b', '--buffer',
+        dest='buffer_size',
+        default=1000,
+        help="""Flush to database every X records"""
+    )
+    arg_parser.add_argument(
         '-m', '--metadata',
         dest='metadata',
         default=None,
@@ -141,6 +147,7 @@ def process_args(args):
         'datetime': getattr(args, 'datetime', []),
         'timezone': getattr(args, 'timezone', None),
         'copy_mode': getattr(args, 'copy_mode', False),
+        'buffer_size': getattr(args, 'buffer_size', 1000)
     }
 
     if config['timezone'] is not None:

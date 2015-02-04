@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='ogr2pgpc',
-    version='0.1',
+    version='0.2',
     author='Bborie Park',
     author_email='bboriepark@granular.ag',
     url='www.granular.ag',
