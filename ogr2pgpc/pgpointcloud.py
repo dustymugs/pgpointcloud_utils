@@ -407,21 +407,25 @@ HAVING count(points.*) > %s
         old_patch_size = 0
         old_patch_count = 0
         delta = None
-        in_long_tail = False
+        long_tail_count = 0
 
         while True:
+
 
             patch_count = \
                 get_patch_count(cursor, temp_table, patch_size, max_points_per_patch)
 
             if abs(patch_size - old_patch_size) <= 1:
                 if patch_count == 0:
-                    if patch_size > old_patch_size:
-                        in_long_tail = True
+                    if long_tail_count >= 5:
+                        patch_size = old_patch_size
+                        break
+                    elif patch_size > old_patch_size:
+                        long_tail_count += 1
                 elif old_patch_count == 0:
                     patch_size = old_patch_size
                     break
-            elif in_long_tail and patch_count > 0 and old_patch_count == 0:
+            elif long_tail_count > 0 and patch_count > 0 and old_patch_count == 0:
                 patch_size = old_patch_size
                 break
 
