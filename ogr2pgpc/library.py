@@ -43,8 +43,9 @@ Config = {
     'datetime': [],
     'timezone': get_localzone(),
     'copy_mode': False,
-    'buffer_size': 1000
+    'buffer_size': 1000,
 }
+
 DSIn = None
 DBConn = None
 
@@ -67,13 +68,13 @@ def open_db_connection(dsn):
 def interpret_fields(layer):
 
     def add_coordinate(dimensions, coord):
-        fldType = ogr.OFTReal
+        field_type = ogr.OFTReal
         dimensions.append({
             'index': None,
             'name': coord,
             'type': {
-                'source': fldType,
-                'dest': DATA_TYPE_MAPPING[fldType]
+                'source': field_type,
+                'dest': DATA_TYPE_MAPPING[field_type]
             }
         })
 
@@ -109,34 +110,35 @@ def interpret_fields(layer):
         }
 
     # loop over each field
+    name_lookup = {}
     for idx in xrange(numFields):
         fldDef = feat.GetFieldDefnRef(idx)
 
-        fldInfo = {
+        field_info = {
             'index': idx,
             'name': fldDef.GetName(), 
         }
 
-        fldType = fldDef.GetType()
+        field_type = fldDef.GetType()
 
         # field in ignore list
-        if fldInfo['name'] in ignore:
-            fields['ignore'].append(fldInfo)
+        if field_info['name'] in ignore:
+            fields['ignore'].append(field_info)
             continue
 
         # user-defined group_by list and field in that list 
-        if group_by and fldInfo['name'] in group_by:
+        if group_by and field_info['name'] in group_by:
             # add field to internal group_by list
-            fields['group_by'].append(fldInfo)
+            fields['group_by'].append(field_info)
         # field is string format
-        elif fldType == ogr.OFTString:
+        elif field_type == ogr.OFTString:
             # field not in user-defined group_by list
             if not group_by:
 
                 # field in override
                 found = False
                 for treat_as, details in overrides.iteritems():
-                    if fldInfo['name'] in details['column']:
+                    if field_info['name'] in details['column']:
                         found = True
                         break
 
@@ -151,31 +153,36 @@ def interpret_fields(layer):
 
                     dest = DATA_TYPE_MAPPING[source]
 
-                    fldInfo['type'] = {
+                    field_info['type'] = {
                         'treat_as': treat_as,
                         'callback': details['callback'],
                         'source': source,
                         'dest': dest,
                     }
-                    fields['dimension'].append(fldInfo)
+                    fields['dimension'].append(field_info)
+                    name_lookup[field_info['name']] = len(fields['dimension']) - 1
 
                 # default is to add to group_by
                 else:
-                    fields['group_by'].append(fldInfo)
+                    fields['group_by'].append(field_info)
 
             # add field to internal ignore list
             else:
-                fields['ignore'].append(fldInfo)
+                fields['ignore'].append(field_info)
         # field is supported
-        elif fldType in DATA_TYPE_MAPPING:
-            fldInfo['type'] = {
-                'source': fldType,
-                'dest': DATA_TYPE_MAPPING[fldType],
+        elif field_type in DATA_TYPE_MAPPING:
+
+            field_info['type'] = {
+                'source': field_type,
+                'dest': DATA_TYPE_MAPPING[field_type],
             }
-            fields['dimension'].append(fldInfo)
+
+            fields['dimension'].append(field_info)
+            name_lookup[field_info['name']] = len(fields['dimension']) - 1
+
         # unknown field, add to internal ignore list
         else:
-            fields['ignore'].append(fldInfo)
+            fields['ignore'].append(field_info)
 
     for key, indices in fields.iteritems():
 
@@ -193,6 +200,21 @@ def interpret_fields(layer):
 
         for fld in indices:
             print "    %s" % fld['name']
+
+    # sort dimension alphabetically
+    names = name_lookup.keys()
+    names.sort()
+    names.insert(0, 'Z')
+    names.insert(0, 'Y')
+    names.insert(0, 'X')
+    name_lookup['X'] = 0
+    name_lookup['Y'] = 1
+    name_lookup['Z'] = 2
+
+    fields['dimension'] = [
+        fields['dimension'][name_lookup[name]]
+        for name in names
+    ]
 
     return fields
 
@@ -501,7 +523,8 @@ def import_layer(layer, file_table, pcid, fields):
         file_table,
         temp_table,
         layer,
-        Config.get('metadata', None)
+        Config.get('metadata', None),
+        Config.get('input_file', None),
     )
 
     return True

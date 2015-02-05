@@ -1,3 +1,5 @@
+import os
+
 import psycopg2
 from psycopg2.extensions import AsIs
 
@@ -228,6 +230,7 @@ CREATE TABLE %s (
     id BIGSERIAL PRIMARY KEY,
     pa PCPATCH,
     layer_name TEXT,
+    file_name TEXT,
     group_by JSON,
     metadata JSON
 )
@@ -451,7 +454,7 @@ HAVING count(points.*) > %s
 
 def insert_pcpatches(
     dbconn, file_table, temp_table, layer,
-    metadata=None, max_points_per_patch=400
+    metadata=None, file_name=None, max_points_per_patch=400
 ):
 
     layer_name = layer.GetName()
@@ -462,6 +465,10 @@ def insert_pcpatches(
             metadata = json.loads(metadata)
         except json.JSONDecodeError:
             pass
+
+    if file_name:
+
+        file_name = os.path.basename(file_name)
 
     try:
 
@@ -493,9 +500,10 @@ WITH raw_extent AS (
     JOIN utmzone
         ON true
 )
-INSERT INTO %s (layer_name, group_by, metadata, pa) 
+INSERT INTO %s (layer_name, file_name, group_by, metadata, pa) 
 SELECT
     layer_name,
+    %s,
     group_by::json,
     %s::json,
     pa
@@ -513,6 +521,7 @@ FROM (
             AsIs(temp_table),
             AsIs(temp_table),
             AsIs(file_table),
+            file_name,
             json.dumps(metadata),
             layer_name,
             patch_size,
