@@ -1,13 +1,20 @@
-geojson2pgpc
-=======
+pgPointCloud Utilities
+======================
 
-A utility to import a GeoJSON datasource into pgPointCloud patches.
+Various utilities for working with pgPointCloud
+
+Utilities
+---------
+
+ogr2pgpc: Import OGR-compatible datasets as pgPointCloud patches
+geojson2pgpc: Import GeoJSON files as pgPointCloud patches
 
 Requirements
 ------------
 
 * psycopg2
 * shapely
+* ogr
 * dateutil
 * pytz
 * tzlocal

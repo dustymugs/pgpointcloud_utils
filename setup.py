@@ -1,11 +1,11 @@
 from distutils.core import setup
 
 setup(
-    name='geojson2pgpc',
+    name='pgpointcloud_utils',
     version='0.0',
     author='Bborie Park',
     author_email='bboriepark@granular.ag',
     url='www.granular.ag',
-    packages=['geojson2pgpc'],
-    scripts=['scripts/geojson2pgpc']
+    packages=['geojson2pgpc', 'ogr2pgpc'],
+    scripts=['scripts/geojson2pgpc', 'scripts/ogr2pgpc']
 )
