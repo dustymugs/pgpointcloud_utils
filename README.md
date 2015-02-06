@@ -6,8 +6,8 @@ Various utilities for working with pgPointCloud
 Utilities
 ---------
 
-ogr2pgpc: Import OGR-compatible datasets as pgPointCloud patches
-geojson2pgpc: Import GeoJSON files as pgPointCloud patches
+* ogr2pgpc: Import OGR-compatible datasets as pgPointCloud patches
+* geojson2pgpc: Import GeoJSON files as pgPointCloud patches
 
 Requirements
 ------------
