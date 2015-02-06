@@ -116,7 +116,7 @@ def build_pc_schema(fields):
 
     return XML_DECLARATION + ETree.tostring(pc_schema)
 
-def _add_pc_schema(dbconn, pc_schema, srid):
+def add_pc_schema(dbconn, pc_schema, srid=0):
 
     try:
 
@@ -133,47 +133,23 @@ WHERE schema = %s
         if cursor.rowcount > 0:
             return cursor.fetchone()[0]
 
-        # see if there are any available PCIDs
-        cursor.execute("""
-SELECT count(*) FROM pointcloud_formats
-        """)
-        pcid_count = cursor.fetchone()[0]
-
-        # no vacancy
-        if pcid_count == 65535:
-            raise
-
         # next best PCID
         cursor.execute("""
-WITH foo AS (
 SELECT
-    pcid,
-    lead(pcid, 1, NULL) OVER (ORDER BY pcid DESC),
-    pcid - lead(pcid, 1, NULL) OVER (ORDER BY pcid DESC) AS dist
-FROM pointcloud_formats
-ORDER BY pcid DESC
-)
-SELECT
-    foo.pcid - 1 AS next_pcid
-FROM foo
-WHERE (foo.dist > 1 OR foo.dist IS NULL)
-    AND (
-        SELECT
-            count(*)
-        FROM pointcloud_formats AS srs
-        WHERE srs.pcid = foo.pcid - 1
-    ) < 1
-ORDER BY foo.pcid DESC
-LIMIT 1
+	max(avail)
+FROM generate_series(1, 65535) avail
+LEFT JOIN pointcloud_formats used
+	ON avail = used.pcid
+WHERE used.pcid IS NULL
         """)
         if cursor.rowcount > 0:
-            next_pcid = cursor.fetchone()[0]
+            pcid = cursor.fetchone()[0]
         else:
-            next_pcid = 65535
+            raise
 
         cursor.execute(
             'INSERT INTO pointcloud_formats (pcid, srid, schema) VALUES (%s, %s, %s)', (
-                next_pcid,
+                pcid,
                 srid,
                 pc_schema
             )
@@ -184,21 +160,6 @@ LIMIT 1
         return None
     finally:
         cursor.close()
-
-    return next_pcid
-
-def add_pc_schema(dbconn, pc_schema, srid=0):
-
-    max_count = 5
-    count = 0
-
-    pcid = None
-    while pcid is None:
-        count += 1
-        pcid = _add_pc_schema(dbconn, pc_schema, srid)
-
-        if count > max_count:
-            raise Exception('Failed to add PC schema')
 
     return pcid
 
