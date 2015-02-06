@@ -1,5 +1,3 @@
-import os
-
 import psycopg2
 from psycopg2.extensions import AsIs
 
@@ -426,10 +424,6 @@ def insert_pcpatches(
             metadata = json.loads(metadata)
         except json.JSONDecodeError:
             pass
-
-    if file_name:
-
-        file_name = os.path.basename(file_name)
 
     try:
 

@@ -517,6 +517,10 @@ def import_layer(layer, file_table, pcid, fields):
         copy_pcpoints(DBConn, temp_table, wkb_set, group)
         wkb_set = []
 
+    file_name = Config.get('input_file', None)
+    if file_name:
+        file_name = os.path.basename(file_name)
+
     # build patches for layer by distinct group
     insert_pcpatches(
         DBConn,
@@ -524,7 +528,7 @@ def import_layer(layer, file_table, pcid, fields):
         temp_table,
         layer,
         Config.get('metadata', None),
-        Config.get('input_file', None),
+        file_name
     )
 
     return True
