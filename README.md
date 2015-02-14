@@ -10,7 +10,7 @@ Import OGR-compatible datasets as pgPointCloud patches
 
 ### geojson2pgpc
 
-Import GeoJSON files as pgPointCloud patches
+Import GeoJSON files as pgPointCloud patches. This utility is a stripped version of ogr2pgpc for performance reasons.
 
 ## Requirements
 
