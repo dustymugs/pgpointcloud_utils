@@ -1,16 +1,18 @@
-pgPointCloud Utilities
-======================
+# pgPointCloud Utilities
 
 Various utilities for working with pgPointCloud
 
-Utilities
----------
+## Utilities
 
-* ogr2pgpc: Import OGR-compatible datasets as pgPointCloud patches
-* geojson2pgpc: Import GeoJSON files as pgPointCloud patches
+### ogr2pgpc
 
-Requirements
-------------
+Import OGR-compatible datasets as pgPointCloud patches
+
+### geojson2pgpc
+
+Import GeoJSON files as pgPointCloud patches
+
+## Requirements
 
 * psycopg2
 * shapely
@@ -19,8 +21,7 @@ Requirements
 * pytz
 * tzlocal
 
-License
--------
+## License
 
 ```
 Copyright (c) 2015, Granular, Inc.
