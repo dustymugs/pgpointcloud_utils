@@ -29,7 +29,7 @@ The structure of _mapping_ is a JSON dictionary. Each key is a dimension positio
 ```
 {
   ...
-  'dest_key': 'origin_key',
+  "dest_key": "origin_key",
   ...
 }
 ```
@@ -49,7 +49,7 @@ The structure of _mapping_ is a JSON dictionary. Each key is a dimension positio
 ```
 {
   ...
-  'dest_key': 5
+  "dest_key": 5
   ...
 }
 ```
@@ -59,7 +59,7 @@ The structure of _mapping_ is a JSON dictionary. Each key is a dimension positio
 ```
 {
   ...
-  5: 'origin_key'
+  5: "origin_key"
   ...
 }
 ```
@@ -70,10 +70,10 @@ The structure of _mapping_ is a JSON dictionary. Each key is a dimension positio
 {
   ...
   5: {
-    'value': 65535
+    "value": 65535
   },
-  'dest_key': {
-    'value': 65535
+  "dest_key": {
+    "value": 65535
   }
   ...
 }
@@ -85,10 +85,10 @@ The structure of _mapping_ is a JSON dictionary. Each key is a dimension positio
 {
   ...
   5: {
-    'expression': '$origin_key ** 2'
+    "expression": "$origin_key ** 2"
   },
-  'dest_key': {
-    'expression': '1. / $origin_key'
+  "dest_key": {
+    "expression": "1. / $origin_key"
   }
   ...
 }
@@ -237,85 +237,43 @@ __PCID = 3 (SRID = 4269)__
 </pc:PointCloudSchema>
 ```
 
-
-
-
+Transform from PCID 1 to 10
+```
+SELECT PC_Transform(pt, 10, '{
+    1: 1,
+    "Y", 2,
+    3: "Z",
+    "charlie": None,
+    "alpha": None,
+    "bravo": None
+}'::json)
 ```
 
-# key is either the position or attribute name from the destination schema
-# value is a JSON object describing the normalization to be done on the origin schema attribute
-#
-
-'''
-pcid = 10 (srid = 4269)
-
-X (int32_t, scale=0.01)
-Y (int32_t, scale=0.01)
-Z (int32_t, scale=0.01)
-charlie (double)
-bravo (double)
-alpha (int16_t)
-'''
-
-'''
-pcid = 20 (srid = 4269)
-
-X (double)
-Y (double)
-Z (double)
-yankee (uint32_t)
-zulu (double)
-'''
-
-'''
-SELECT PC_Transform(
-    pt, # PcPoint
-    10, # destination PCID,
-    mapping # JSON object
-)
-'''
-
-# from PCID 1 to 10
-# a dict, so order is not guarenteed
-mapping = {
-    'srid': 'srid', # keyword to keyword, both SRIDs are found in pointcloud
-
-    1: 1, # position to position
-    'Y', 2, # keyword to position
-    3: 'Z', # position to keyword
-    'charlie': None, # None is special, means keyword applies to both sides
-    'alpha': None,
-    'bravo': None
-}
-
-# from PCID 1 to 10
-# enhanced example
-mapping = {
-    'srid': None,
-
+Transform from PCID 1 to 10
+```
+SELECT PC_Transform(pt, 10, '{
     1: {
-      'expression': '$X * 100.'
-    }, # simple expression. coordinates are reprojected first
-    'Y', 2,
-    3: 'Z',
-    'alpha': None,
-    'bravo': None
-    'charlie': None,
-}
+      "expression": "$X * 100."
+    },
+    "Y", 2,
+    3: "Z",
+    "alpha": None,
+    "bravo": None
+    "charlie": None,
+}'::json)
+```
 
-# from PCID 1 to 20
-# advanced example
-mapping = {
-    'srid': None,
-
-    'X': None,
-    'Y': None,
-    'Z': None,
-    'yankee': {
-      'value': 9999999
+Transform from PCID 1 to 20
+```
+SELECT PC_Transform(pt, 10, '{
+    "X": None,
+    "Y": None,
+    "Z": None,
+    "yankee": {
+      "value": 9999999
     }, # nothing maps, so value is explicitly set
-    'zulu': {
-      'expression': '($alpha ** 2) + (2 * $bravo) - $charlie'
+    "zulu": {
+      "expression": "($alpha ** 2) + (2 * $bravo) - $charlie"
     }
-}
+}'::json)
 ```
