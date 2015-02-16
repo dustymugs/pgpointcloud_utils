@@ -22,7 +22,7 @@ Import GeoJSON files as pgPointCloud patches. This utility is a stripped version
 
 * __-b BUFFER_SIZE, --buffer BUFFER_SIZE__
 
-  Flush to database every X records  
+  Flush to database every _BUFFER_SIZE_ records  
 
 * __-g GROUP_BY, --group-by GROUP_BY__
 
@@ -76,3 +76,4 @@ Import GeoJSON files as pgPointCloud patches. This utility is a stripped version
 
   GeoJSON file to be imported to pgPointCloud  
 
+As there is no way to directly store _DATE_, _TIME_ and _DATETIME_ values in a supported pgPointCloud datatype, these values are converted to the number of seconds UTC from UNIX epoch. The converted values are stored as _double_ to capture milliseconds, if any.
