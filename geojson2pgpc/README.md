@@ -20,59 +20,59 @@ Import GeoJSON files as pgPointCloud patches. This utility is a stripped version
 
   Use COPY statements instead of INSERT statements  
 
-* -b BUFFER_SIZE, --buffer BUFFER_SIZE
+* __-b BUFFER_SIZE, --buffer BUFFER_SIZE__
 
   Flush to database every X records  
 
-* -g GROUP_BY, --group-by GROUP_BY
+* __-g GROUP_BY, --group-by GROUP_BY__
 
   Names of attributes to group by. Can be specified multiple times. If not specified, automatic grouping is done  
 
-* -i IGNORE, --ignore IGNORE
+* __-i IGNORE, --ignore IGNORE__
 
   Names of attributes to ignore. Can be specified multiple times. If not specified, all attributes are considered  
 
-* -l LAYER, --layer LAYER
+* __-l LAYER, --layer LAYER__
 
   Layer names to convert. Can be specified multiple times. If not specified, all layers of input file are processed  
 
-* --date DATE
+* __--date DATE__
 
   Names of attributes to treat as Date values. Can be specified multiple times  
 
-* --time TIME
+* __--time TIME__
 
   Names of attributes to treat as Time values. Can be specified multiple times  
 
-* --datetime DATETIME
+* __--datetime DATETIME__
 
   Names of attributes to treat as DateTime values. Can be specified multiple times  
 
-* -tz TIMEZONE, --timezone TIMEZONE
+* __-tz TIMEZONE, --timezone TIMEZONE__
 
   Timezone for time and datetime values with no timezone. If not specified, local timezone is assumed  
 
-* -p PCID, --pcid PCID
+* __-p PCID, --pcid PCID__
 
   PCID of the pgPointCloud schema. This overrides the internal PCID schema search and creation  
 
-* -s SRID, --srid SRID
+* __-s SRID, --srid SRID__
 
   SRID of the spatial coordinates X, Y, Z. This overrides the internal SRID estimation  
 
-* -t TABLE_NAME, --tablename TABLE_NAME
+* __-t TABLE_NAME, --tablename TABLE_NAME__
 
   Name of table to insert PcPatches into. If not specified, name of input file is used  
 
-* -a {create,append,drop}, --action {create,append,drop}
+* __-a {create,append,drop}, --action {create,append,drop}__
 
-  Action to take for the table. create is the default action  
+  Action to take for the table. _create_ is the default action  
 
-* -d DSN, --dsn DSN
+* __-d DSN, --dsn DSN__
 
   Database connection string  
 
-* -f INPUT_FILE, --file INPUT_FILE
+* __-f INPUT_FILE, --file INPUT_FILE__
 
   GeoJSON file to be imported to pgPointCloud  
 
