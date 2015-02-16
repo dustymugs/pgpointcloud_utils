@@ -271,7 +271,7 @@ SELECT PC_Transform(pt, 10, '{
     "Z": None,
     "yankee": {
       "value": 9999999
-    }, # nothing maps, so value is explicitly set
+    },
     "zulu": {
       "expression": "($alpha ** 2) + (2 * $bravo) - $charlie"
     }
