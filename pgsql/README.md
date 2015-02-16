@@ -95,6 +95,7 @@ The structure of _mapping_ is a JSON dictionary. Each key is a dimension positio
 ```
 
 _WARNING: Order is not guaranteed in JSON_
+
 _WARNING: Though the same key can be provided in JSON, the last key will overwrite all prior instances of that key_
 
 #### Example
