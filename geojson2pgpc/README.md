@@ -13,7 +13,7 @@ Import GeoJSON files as pgPointCloud patches. This utility is a stripped version
 ## Usage
 
 * -h, --help
-show this help message and exit
+  show this help message and exit
 * -y, --copy
 Use COPY statements instead of INSERT statements
 * -b BUFFER_SIZE, --buffer BUFFER_SIZE
