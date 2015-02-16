@@ -24,28 +24,68 @@ If the PcPoint's SRID differs from the destination PCID's SRID, the coordinates 
 
 The structure of _mapping_ is a JSON dictionary. Each key is a dimension position or name in the destination schema. The value is the position, name or object operating upon one or more dimensions of the PcPoint's schema.
 
-* from key to key
+* map source name to destination name
 
 ```
-'dest_key': 'origin_key'
+{
+  ...
+  'dest_key': 'origin_key',
+  ...
+}
 ```
 
-* from position to position
+* map source position to destination position
 
 ```
-5: 1
+{
+  ...
+  5: 1,
+  ...
+}
 ```
 
-* from position to key
+* map source position to destination name
 
 ```
-'dest_key': 5
+{
+  ...
+  'dest_key': 5
+  ...
+}
 ```
 
-* from key to position
+* map source name to destination position
 
 ```
-5: 'origin_key'
+{
+  ...
+  5: 'origin_key'
+  ...
+}
+```
+
+* map a value to destination
+
+```
+{
+  ...
+  5: {
+    'value': 65535
+  }
+  ...
+}
+```
+
+* map an expression to destination
+
+```
+{
+  ...
+  'dest_key': {
+    'expression': '$origin_key * 3.14'
+  }
+  ...
+}
 ```
 
 #### Example
