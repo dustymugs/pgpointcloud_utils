@@ -94,6 +94,18 @@ The structure of _mapping_ is a JSON dictionary. Each key is a dimension positio
 }
 ```
 
+* map _null_ to destination
+
+  This applies the destination position or key to the origin. Position 5 of origin maps to position 5 of destination. Key "dest_key" of origin maps to key "dest_key" of destination.
+
+```
+{
+  ...
+  5: null,
+  "dest_key": null
+}
+```
+
 _WARNING: Order is not guaranteed in JSON_
 
 _WARNING: Though the same key can be provided in JSON, the last key will overwrite all prior instances of that key_
@@ -243,9 +255,9 @@ SELECT PC_Transform(pt, 10, '{
     1: 1,
     "Y", 2,
     3: "Z",
-    "charlie": None,
-    "alpha": None,
-    "bravo": None
+    "charlie": null,
+    "alpha": null,
+    "bravo": null
 }'::json)
 ```
 
@@ -257,18 +269,18 @@ SELECT PC_Transform(pt, 10, '{
     },
     "Y", 2,
     3: "Z",
-    "alpha": None,
-    "bravo": None
-    "charlie": None,
+    "alpha": null,
+    "bravo": null
+    "charlie": null,
 }'::json)
 ```
 
 __Transform from PCID 1 to 20__
 ```
 SELECT PC_Transform(pt, 10, '{
-    "X": None,
-    "Y": None,
-    "Z": None,
+    "X": null,
+    "Y": null,
+    "Z": null,
     "yankee": {
       "value": 9999999
     },
