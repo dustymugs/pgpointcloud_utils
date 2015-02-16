@@ -13,11 +13,11 @@ Import GeoJSON files as pgPointCloud patches. This utility is a stripped version
 ## Usage
 
 * -h, --help
-  show this help message and exit
+ show this help message and exit
 * -y, --copy
-Use COPY statements instead of INSERT statements
+ Use COPY statements instead of INSERT statements
 * -b BUFFER_SIZE, --buffer BUFFER_SIZE
-Flush to database every X records
+ Flush to database every X records
 * -g GROUP_BY, --group-by GROUP_BY
 Names of attributes to group by. Can be specified
 multiple times. If not specified, automatic grouping
