@@ -32,10 +32,6 @@ Import GeoJSON files as pgPointCloud patches. This utility is a stripped version
 
   Names of attributes to ignore. Can be specified multiple times. If not specified, all attributes are considered  
 
-* __-l LAYER, --layer LAYER__
-
-  Layer names to convert. Can be specified multiple times. If not specified, all layers of input file are processed  
-
 * __--date DATE__
 
   Names of attributes to treat as Date values. Can be specified multiple times  
@@ -77,3 +73,18 @@ Import GeoJSON files as pgPointCloud patches. This utility is a stripped version
   GeoJSON file to be imported to pgPointCloud  
 
 As there is no way to directly store _DATE_, _TIME_ and _DATETIME_ values in a supported pgPointCloud datatype, these values are converted to the number of seconds UTC from UNIX epoch. The converted values are stored as _double_ to capture milliseconds, if any.
+
+The PcPatch table created or appended to looks like:
+
+```
+CREATE TABLE pcpatch_table (
+    id BIGSERIAL PRIMARY KEY,
+    pa PCPATCH,
+    layer_name TEXT,
+    file_name TEXT,
+    group_by JSON,
+    metadata JSON
+)
+```
+
+
