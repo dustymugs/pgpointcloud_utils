@@ -14,30 +14,187 @@ Transform a PcPoint from one schema to another
 
 #### Signature
 
-_pcpoint_ __PC_Transform__(pt _pcpoint_, pcid _integer_, mapping _json_)
+pcpoint __PC_Transform__(_pt_ pcpoint, _pcid_ integer, _mapping_ json)
 
 #### Description
 
 Transform a PcPoint from one schema to another by specifying the destination PCID and a JSON object that maps attributes between schemas.
 
-#### Examples
+If the PcPoint's SRID differs from the destination PCID's SRID, the coordinates X, Y, Z will be projected.
+
+The structure of _mapping_ is a JSON dictionary. Each key is a dimension position or name in the destination schema. The value is the position, name or object operating upon one or more dimensions of the PcPoint's schema.
+
+* from key to key
+
+```
+'dest_key': 'origin_key'
+```
+
+* from position to position
+
+```
+5: 1
+```
+
+* from position to key
+
+```
+'dest_key': 5
+```
+
+* from key to position
+
+```
+5: 'origin_key'
+```
+
+#### Example
+
+There are three pointcloud schemas.
+
+PCID = 1 (SRID = 4326)
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<pc:PointCloudSchema xmlns:pc="http://pointcloud.org/schemas/PC/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <pc:dimension>
+    <pc:position>1</pc:position>
+    <pc:name>X</pc:name>
+    <pc:size>8</pc:size>
+    <pc:interpretation>double</pc:interpretation>
+  </pc:dimension>
+  <pc:dimension>
+    <pc:position>2</pc:position>
+    <pc:name>Y</pc:name>
+    <pc:size>8</pc:size>
+    <pc:interpretation>double</pc:interpretation>
+  </pc:dimension>
+  <pc:dimension>
+    <pc:position>3</pc:position>
+    <pc:name>Z</pc:name>
+    <pc:size>8</pc:size>
+    <pc:interpretation>double</pc:interpretation>
+  </pc:dimension>
+  <pc:dimension>
+    <pc:position>4</pc:position>
+    <pc:name>alpha</pc:name>
+    <pc:size>1</pc:size>
+    <pc:interpretation>uint8_t</pc:interpretation>
+  </pc:dimension>
+  <pc:dimension>
+    <pc:position>5</pc:position>
+    <pc:name>bravo</pc:name>
+    <pc:size>4</pc:size>
+    <pc:interpretation>float</pc:interpretation>
+  </pc:dimension>
+  <pc:dimension>
+    <pc:position>6</pc:position>
+    <pc:name>charlie</pc:name>
+    <pc:size>8</pc:size>
+    <pc:interpretation>double</pc:interpretation>
+  </pc:dimension>
+  <pc:metadata>
+    <Metadata name="compression">dimensional</Metadata>
+  </pc:metadata>
+</pc:PointCloudSchema>
+```
+
+PCID = 2 (SRID = 4326)
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<pc:PointCloudSchema xmlns:pc="http://pointcloud.org/schemas/PC/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <pc:dimension>
+    <pc:position>1</pc:position>
+    <pc:name>X</pc:name>
+    <pc:size>4</pc:size>
+    <pc:interpretation>int32_t</pc:interpretation>
+    <pc:scale>0.01</pc:scale>
+  </pc:dimension>
+  <pc:dimension>
+    <pc:position>2</pc:position>
+    <pc:name>Y</pc:name>
+    <pc:size>4</pc:size>
+    <pc:interpretation>int32_t</pc:interpretation>
+    <pc:scale>0.01</pc:scale>
+  </pc:dimension>
+  <pc:dimension>
+    <pc:position>3</pc:position>
+    <pc:name>Z</pc:name>
+    <pc:size>4</pc:size>
+    <pc:interpretation>int32_t</pc:interpretation>
+    <pc:scale>0.01</pc:scale>
+  </pc:dimension>
+  <pc:dimension>
+    <pc:position>4</pc:position>
+    <pc:name>charlie</pc:name>
+    <pc:size>8</pc:size>
+    <pc:interpretation>double</pc:interpretation>
+  </pc:dimension>
+  <pc:dimension>
+    <pc:position>5</pc:position>
+    <pc:name>bravo</pc:name>
+    <pc:size>4</pc:size>
+    <pc:interpretation>float</pc:interpretation>
+  </pc:dimension>
+  <pc:dimension>
+    <pc:position>6</pc:position>
+    <pc:name>alpha</pc:name>
+    <pc:size>1</pc:size>
+    <pc:interpretation>uint8_t</pc:interpretation>
+  </pc:dimension>
+  <pc:metadata>
+    <Metadata name="compression">dimensional</Metadata>
+  </pc:metadata>
+</pc:PointCloudSchema>
+```
+
+PCID = 3 (SRID = 4269)
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<pc:PointCloudSchema xmlns:pc="http://pointcloud.org/schemas/PC/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <pc:dimension>
+    <pc:position>1</pc:position>
+    <pc:name>X</pc:name>
+    <pc:size>8</pc:size>
+    <pc:interpretation>double</pc:interpretation>
+  </pc:dimension>
+  <pc:dimension>
+    <pc:position>2</pc:position>
+    <pc:name>Y</pc:name>
+    <pc:size>8</pc:size>
+    <pc:interpretation>double</pc:interpretation>
+  </pc:dimension>
+  <pc:dimension>
+    <pc:position>3</pc:position>
+    <pc:name>Z</pc:name>
+    <pc:size>8</pc:size>
+    <pc:interpretation>double</pc:interpretation>
+  </pc:dimension>
+  <pc:dimension>
+    <pc:position>4</pc:position>
+    <pc:name>yankee</pc:name>
+    <pc:size>4</pc:size>
+    <pc:interpretation>uint32_t</pc:interpretation>
+  </pc:dimension>
+  <pc:dimension>
+    <pc:position>5</pc:position>
+    <pc:name>zulu</pc:name>
+    <pc:size>8</pc:size>
+    <pc:interpretation>double</pc:interpretation>
+  </pc:dimension>
+  <pc:metadata>
+    <Metadata name="compression">dimensional</Metadata>
+  </pc:metadata>
+</pc:PointCloudSchema>
+```
+
+
+
 
 ```
 
 # key is either the position or attribute name from the destination schema
 # value is a JSON object describing the normalization to be done on the origin schema attribute
 #
-
-'''
-pcid = 1 (srid = 4326)
-
-X (double)
-Y (double)
-Z (double)
-alpha (uint8_t)
-bravo (float)
-charlie (double)
-'''
 
 '''
 pcid = 10 (srid = 4269)
@@ -86,7 +243,9 @@ mapping = {
 mapping = {
     'srid': None,
 
-    1: '$X * 100.', # simple expression. coordinates are reprojected first
+    1: {
+      'expression': '$X * 100.'
+    }, # simple expression. coordinates are reprojected first
     'Y', 2,
     3: 'Z',
     'alpha': None,
@@ -103,8 +262,10 @@ mapping = {
     'Y': None,
     'Z': None,
     'yankee': {
-        'value': 9999999
+      'value': 9999999
     }, # nothing maps, so value is explicitly set
-    'zulu': '($alpha ** 2) + (2 * $bravo) - $charlie'
+    'zulu': {
+      'expression': '($alpha ** 2) + (2 * $bravo) - $charlie'
+    }
 }
 ```
