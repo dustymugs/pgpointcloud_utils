@@ -25,20 +25,21 @@ Import GeoJSON files as pgPointCloud patches. This utility is a stripped version
   Flush to database every X records  
 
 * -g GROUP_BY, --group-by GROUP_BY
-Names of attributes to group by. Can be specified
-multiple times. If not specified, automatic grouping
-is done
+
+  Names of attributes to group by. Can be specified multiple times. If not specified, automatic grouping is done  
+
 * -i IGNORE, --ignore IGNORE
-Names of attributes to ignore. Can be specified
-multiple times. If not specified, all attributes are
-considered
+
+  Names of attributes to ignore. Can be specified multiple times. If not specified, all attributes are considered  
+
 * -l LAYER, --layer LAYER
-Layer names to convert. Can be specified multiple
-times. If not specified, all layers of input file are
-processed
+
+  Layer names to convert. Can be specified multiple times. If not specified, all layers of input file are processed  
+
 * --date DATE
-Names of attributes to treat as Date values. Can be
-specified multiple times
+
+  Names of attributes to treat as Date values. Can be specified multiple times  
+
 * --time TIME
 Names of attributes to treat as Time values. Can be
 specified multiple times
