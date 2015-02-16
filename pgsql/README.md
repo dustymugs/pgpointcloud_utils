@@ -64,12 +64,15 @@ The structure of _mapping_ is a JSON dictionary. Each key is a dimension positio
 }
 ```
 
-* map a value to destination
+* map a constant to destination
 
 ```
 {
   ...
   5: {
+    'value': 65535
+  },
+  'dest_key': {
     'value': 65535
   }
   ...
@@ -81,8 +84,11 @@ The structure of _mapping_ is a JSON dictionary. Each key is a dimension positio
 ```
 {
   ...
+  5: {
+    'expression': '$origin_key ** 2'
+  },
   'dest_key': {
-    'expression': '$origin_key * 3.14'
+    'expression': '1. / $origin_key'
   }
   ...
 }
