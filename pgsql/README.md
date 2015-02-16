@@ -98,7 +98,7 @@ The structure of _mapping_ is a JSON dictionary. Each key is a dimension positio
 
 There are three pointcloud schemas.
 
-PCID = 1 (SRID = 4326)
+__PCID = 1 (SRID = 4326)__
 ```
 <?xml version="1.0" encoding="UTF-8"?>
 <pc:PointCloudSchema xmlns:pc="http://pointcloud.org/schemas/PC/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
@@ -144,7 +144,7 @@ PCID = 1 (SRID = 4326)
 </pc:PointCloudSchema>
 ```
 
-PCID = 2 (SRID = 4326)
+__PCID = 2 (SRID = 4326)__
 ```
 <?xml version="1.0" encoding="UTF-8"?>
 <pc:PointCloudSchema xmlns:pc="http://pointcloud.org/schemas/PC/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
@@ -193,7 +193,7 @@ PCID = 2 (SRID = 4326)
 </pc:PointCloudSchema>
 ```
 
-PCID = 3 (SRID = 4269)
+__PCID = 3 (SRID = 4269)__
 ```
 <?xml version="1.0" encoding="UTF-8"?>
 <pc:PointCloudSchema xmlns:pc="http://pointcloud.org/schemas/PC/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
