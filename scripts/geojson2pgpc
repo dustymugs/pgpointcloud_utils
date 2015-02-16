@@ -38,14 +38,6 @@ def _init_argparser():
         help="""Names of attributes to ignore. Can be specified multiple 
         times. If not specified, all attributes are considered"""
     )
-    arg_parser.add_argument(
-        '-l', '--layer',
-        action='append',
-        dest='layer',
-        default=[],
-        help="""Layer names to convert. Can be specified multiple times. If not
-        specified, all layers of input file are processed"""
-    )
 
     arg_parser.add_argument(
         '--date',

@@ -35,7 +35,6 @@ Config = {
     'metadata': None,
     'group_by': [],
     'ignore': [],
-    'layer': [],
     'srid': None,
     'pcid': None,
     'table_name': None,
