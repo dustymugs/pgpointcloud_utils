@@ -237,7 +237,7 @@ __PCID = 3 (SRID = 4269)__
 </pc:PointCloudSchema>
 ```
 
-Transform from PCID 1 to 10
+__Transform from PCID 1 to 10__
 ```
 SELECT PC_Transform(pt, 10, '{
     1: 1,
@@ -249,7 +249,7 @@ SELECT PC_Transform(pt, 10, '{
 }'::json)
 ```
 
-Transform from PCID 1 to 10
+__Transform from PCID 1 to 10__
 ```
 SELECT PC_Transform(pt, 10, '{
     1: {
@@ -263,7 +263,7 @@ SELECT PC_Transform(pt, 10, '{
 }'::json)
 ```
 
-Transform from PCID 1 to 20
+__Transform from PCID 1 to 20__
 ```
 SELECT PC_Transform(pt, 10, '{
     "X": None,
