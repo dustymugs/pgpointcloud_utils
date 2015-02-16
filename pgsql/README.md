@@ -24,9 +24,9 @@ If the PcPoint's SRID differs from the destination PCID's SRID, the coordinates 
 
 The structure of _mapping_ is a JSON dictionary. Each key is a dimension position or name in the destination schema. The value is the position, name or object operating upon one or more dimensions of the PcPoint's schema.
 
-_WARNING: Order is not guaranteed in JSON_
+_**WARNING** Order is not guaranteed in JSON_
 
-_WARNING: Though the same key can be provided in JSON, the last key will overwrite all prior instances of that key_
+_**WARNING** Though the same key can be provided in JSON, the last key will overwrite all prior instances of that key_
 
 
 * map source name to destination name
