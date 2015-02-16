@@ -12,11 +12,11 @@ Import GeoJSON files as pgPointCloud patches. This utility is a stripped version
 
 ## Usage
 
-* -h, --help
+* __-h, --help__
 
   show this help message and exit
 
-* -y, --copy
+* __-y, --copy__
 
   Use COPY statements instead of INSERT statements  
 
@@ -41,27 +41,38 @@ Import GeoJSON files as pgPointCloud patches. This utility is a stripped version
   Names of attributes to treat as Date values. Can be specified multiple times  
 
 * --time TIME
-Names of attributes to treat as Time values. Can be
-specified multiple times
+
+  Names of attributes to treat as Time values. Can be specified multiple times  
+
 * --datetime DATETIME
-Names of attributes to treat as DateTime values. Can
-be specified multiple times
+
+  Names of attributes to treat as DateTime values. Can be specified multiple times  
+
 * -tz TIMEZONE, --timezone TIMEZONE
-Timezone for time and datetime values with no
-timezone. If not specified, local timezone is assumed
+
+  Timezone for time and datetime values with no timezone. If not specified, local timezone is assumed  
+
 * -p PCID, --pcid PCID
-PCID of the pgPointCloud schema. This overrides the
-internal PCID schema creation
+
+  PCID of the pgPointCloud schema. This overrides the internal PCID schema search and creation  
+
 * -s SRID, --srid SRID
-SRID of the spatial coordinates X, Y, Z. This
-overrides the internal SRID estimation
+
+  SRID of the spatial coordinates X, Y, Z. This overrides the internal SRID estimation  
+
 * -t TABLE_NAME, --tablename TABLE_NAME
-Name of table to insert PcPatches into. If not
-specified, name of input file is used
+
+  Name of table to insert PcPatches into. If not specified, name of input file is used  
+
 * -a {create,append,drop}, --action {create,append,drop}
-Action to take for the table. create is the default action
+
+  Action to take for the table. create is the default action  
+
 * -d DSN, --dsn DSN
-Database connection string
+
+  Database connection string  
+
 * -f INPUT_FILE, --file INPUT_FILE
-GeoJSON file to be imported to pgPointCloud
+
+  GeoJSON file to be imported to pgPointCloud  
 
