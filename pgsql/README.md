@@ -94,6 +94,8 @@ The structure of _mapping_ is a JSON dictionary. Each key is a dimension positio
 }
 ```
 
+_WARNING: Order is not guaranteed in JSON_
+
 #### Example
 
 There are three pointcloud schemas.
