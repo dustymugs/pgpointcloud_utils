@@ -44,7 +44,7 @@ _**WARNING** Though the same key can be provided in JSON, the last key will over
 ```
 {
   ...
-  5: 1,
+  "5": 1,
   ...
 }
 ```
@@ -64,7 +64,7 @@ _**WARNING** Though the same key can be provided in JSON, the last key will over
 ```
 {
   ...
-  5: "origin_key"
+  "5": "origin_key"
   ...
 }
 ```
@@ -74,7 +74,7 @@ _**WARNING** Though the same key can be provided in JSON, the last key will over
 ```
 {
   ...
-  5: {
+  "5": {
     "value": 65535
   },
   "dest_key": {
@@ -89,7 +89,7 @@ _**WARNING** Though the same key can be provided in JSON, the last key will over
 ```
 {
   ...
-  5: {
+  "5": {
     "expression": "$origin_key ** 2"
   },
   "dest_key": {
@@ -106,7 +106,7 @@ _**WARNING** Though the same key can be provided in JSON, the last key will over
 ```
 {
   ...
-  5: null,
+  "5": null,
   "dest_key": null
 }
 ```
@@ -253,9 +253,9 @@ __PCID = 3 (SRID = 4269)__
 __Transform from PCID 1 to 10__
 ```
 SELECT PC_Transform(pt, 10, '{
-    1: 1,
+    "1": 1,
     "Y", 2,
-    3: "Z",
+    "3": "Z",
     "charlie": null,
     "alpha": null,
     "bravo": null
@@ -265,11 +265,11 @@ SELECT PC_Transform(pt, 10, '{
 __Transform from PCID 1 to 10__
 ```
 SELECT PC_Transform(pt, 10, '{
-    1: {
+    "1": {
       "expression": "$X * 100."
     },
     "Y", 2,
-    3: "Z",
+    "3": "Z",
     "alpha": null,
     "bravo": null
     "charlie": null,
