@@ -1,6 +1,8 @@
 from decimal import Decimal
 import xml.etree.ElementTree as ET
 
+from .pcexception import *
+
 class PcDimension(object):
 
     DEFAULT_SCALE = 1.
@@ -84,7 +86,9 @@ class PcDimension(object):
         try:
             new_value = str(new_value)
         except:
-            raise
+            raise PcInvalidArgException(
+                message='Value cannot be treated as a string'
+            )
 
         self._name = new_value
 
@@ -97,10 +101,14 @@ class PcDimension(object):
         try:
             new_value = int(new_value)
         except:
-            raise
+            raise PcInvalidArgException(
+                message='Value cannot be treated as an integer'
+            )
 
         if new_value not in PcDimension.BYTES:
-            raise
+            raise PcInvalidArgException(
+                message='Invalid size provided'
+            )
 
         self._size = new_value
 
@@ -112,7 +120,9 @@ class PcDimension(object):
     def interpretation(self, new_value):
 
         if new_value not in PcDimension.INTERPRETATION:
-            raise
+            raise PcInvalidArgException(
+                message='Invalid interpretation provided'
+            )
 
         self._interpretation = new_value
 
@@ -125,11 +135,15 @@ class PcDimension(object):
         try:
             new_value = float(new_value)
         except:
-            raise
+            raise PcInvalidArgException(
+                message='Value cannot be treated as an float'
+            )
 
         # scale cannot be zero
         if Decimal(new_value) == Decimal(0.):
-            raise
+            raise PcInvalidArgException(
+                message='Value cannot be zero'
+            )
 
         self._scale = new_value
 
@@ -170,7 +184,9 @@ class PcFormat(object):
         try:
             new_value = int(new_value)
         except:
-            raise
+            raise PcInvalidArgException(
+                message='Value cannot be treated as an integer'
+            )
 
         self._pcid = new_value
 
@@ -183,7 +199,9 @@ class PcFormat(object):
         try:
             new_value = int(new_value)
         except:
-            raise
+            raise PcInvalidArgException(
+                message='Value cannot be treated as an integer'
+            )
 
         self._srid = new_value
 
@@ -195,11 +213,15 @@ class PcFormat(object):
     def dimensions(self, new_value):
 
         if not isinstance(new_value, list):
-            raise
+            raise PcInvalidArgException(
+                message='Value not a list'
+            )
 
         for dim in new_value:
             if not isinstance(dim, PcDimension):
-                raise
+                raise PcInvalidArgException(
+                    message='Element of list not instance of PcDimension'
+                )
 
         self._dimensions = new_value
 

@@ -1,7 +1,9 @@
 import struct
 import binascii
 from decimal import Decimal
+from numeric_string_parser import NumericStringParser
 
+from .pcexception import *
 from .pcformat import PcDimension, PcFormat
 
 class PcPoint(object):
@@ -31,7 +33,9 @@ class PcPoint(object):
     def pcformat(self, new_value):
 
         if not isinstance(new_value, PcFormat):
-            raise
+            raise PcInvalidArgException(
+                message='Value not an instance of PcFormat'
+            )
 
         self._pcformat = new_value
 
@@ -80,12 +84,16 @@ class PcPoint(object):
         '''
 
         if not isinstance(new_values, list):
-            raise
+            raise PcInvalidArgException(
+                message='Value not a list'
+            )
 
         dimensions = self.pcformat.dimensions
         num_dimensions = len(dimensions)
         if len(new_values) != num_dimensions:
-            raise
+            raise PcInvalidArgException(
+                message='Value has different number of elements than PcFormat dimensions'
+            )
 
         self._raw_values = map(
             PcPoint._compute_raw_value,
@@ -163,14 +171,15 @@ class PcPoint(object):
 
         return cls.from_binary(pcformat, binascii.unhexlify(hexstr))
 
-
     def as_binary(self):
         '''
         serialize PcPoint. returns binary representation
         '''
 
         if self.pcformat is None:
-            raise
+            raise PcInsufficientDataException(
+                message='Cannot dump PcPoint without a PcFormat'
+            )
 
         s = struct.Struct(PcPoint.combined_format(
             is_ndr=True,
@@ -193,7 +202,9 @@ class PcPoint(object):
         '''
 
         if self.pcformat is None:
-            raise
+            raise PcInsufficientDataException(
+                message='Cannot get dimension value from PcPoint without PcFormat'
+            )
 
         # get raw value
         if isinstance(name_or_pos, int):
@@ -215,7 +226,9 @@ class PcPoint(object):
         '''
 
         if self.pcformat is None:
-            raise
+            raise PcInsufficientDataException(
+                message='Cannot set dimension value from PcPoint without PcFormat'
+            )
 
         # scale if dimension has scale
         dim = self.pcformat.get_dimension(name_or_pos)
@@ -228,3 +241,187 @@ class PcPoint(object):
             self._raw_values[name_or_pos] = raw_value
         else:
             self._raw_values[self.pcformat.get_dimension_index(name_or_pos)] = raw_value
+
+    def copy(self):
+        '''
+        returns a copy of this PcPoint
+        '''
+
+        pt = PcPoint(pcformat=self.pcformat)
+        pt._raw_values = copy.deep_copy(self._raw_values)
+
+        return pt
+
+    def transform(self, pcformat, mapping):
+        '''
+        transform PcPoint to provided pcformat using the given mapping
+
+        transforms by:
+            1. converting values
+            2. reprojecting coordinates (X,Y) if pcformat has different SRID
+
+        returns new PcPoint
+        '''
+
+        # if From pcformat == To pcformat, return PcPoint
+        if self.pcformat == pcformat:
+            return self.copy()
+
+        # get info of From pcformat
+        from_dimensions = self.pcformat.dimensions
+        num_from_dimensions = len(from_dimensions)
+
+        # get info of To pcformat
+        to_dimensions = pcformat.dimensions
+        num_to_dimensions = len(to_dimensions)
+
+        # load mapping
+        if not isinstance(mapping, dict):
+            raise PcInvalidArgException(
+                message='mapping not a dict'
+            )
+
+        # new pcpoint
+        to_pcpoint = PcPoint(pcformat=pcformat)
+
+        #
+        # run conversion
+        #
+
+        expr_assignment = {}
+        nsp = None
+
+        to_values = [0. for x in xrange(num_to_dimensions)]
+        map_keys = mapping.keys()
+        for to_idx in xrange(num_to_dimensions):
+
+            to_dimension = to_dimensions[to_idx]
+            to_position = to_idx + 1
+            by_position = False
+
+            # position match
+            if to_position in map_keys:
+
+                map_from = mapping[to_position]
+                by_position = True
+
+            # name match
+            elif to_dimension.name in map_keys:
+
+                map_from = mapping[to_dimension.name]
+
+            # no match, exception
+            else:
+
+                raise PcInvalidArgException(
+                    message='Destination PcFormat dimension "{dimension}" at position {position} not found in mapping'.format(
+                        dimension=to_dimension.name,
+                        position=to_position
+                    )
+                )
+
+            # inspect map_from
+            # None, use the "to"
+            if map_from is None:
+
+                if by_position:
+
+                    to_values[to_idx] = self.get_value(to_idx)
+
+                else:
+
+                    to_values[to_idx] = self.get_value(to_dimension.name)
+
+            # integer, use as index
+            elif isinstance(map_from, int):
+
+                # mapping indexes are 1-based while internal is 0-based
+                to_values[to_idx] = self.get_value(map_from - 1)
+
+            # string, use as dimension name
+            elif isinstance(map_from, str):
+
+                to_values[to_idx] = self.get_value(map_from)
+
+            # dictionary, more advanced behavior
+            elif isinstance(map_from, dict):
+
+                if map_from.has_key('value'):
+
+                    to_values[to_idx] = map_from.get('value')
+
+                elif map_from.has_key('expression'):
+
+                    expr = map_from.get('expression')
+
+                    # assignment object does not exist
+                    if len(expr_assignment) < 1:
+
+                        for from_idx in xrange(num_from_dimensions):
+
+                            from_value = str(self.get_value(from_idx))
+                            expr_assignment['$' + str(from_idx + 1)] = from_value
+                            expr_assignment['$' + from_dimensions[from_idx].name] = from_value
+
+                        # instance of NumericStringParser
+                        nsp = NumericStringParser()
+
+                    # substitute values for placeholders
+                    for k, v in expr_assignment.iteritems():
+                        expr.replace(k, v)
+
+                    # evaluate expression
+                    to_values[to_idx] = nsp.eval(expr)
+
+                else:
+                    if by_position:
+                        key = to_position
+                    else:
+                        key = to_dimension.name
+
+                    raise PcInvalidArgException(
+                        message="Unrecognized dictionary for mapping key: {key} ".format(
+                            key=key
+                        )
+                    )
+
+            else:
+                if by_position:
+                    key = to_position
+                else:
+                    key = to_dimension.name
+
+                raise PcInvalidArgException(
+                    message="Unrecognized value for mapping key: {key} ".format(
+                        key=key
+                    )
+                )
+
+        # set values
+        to_pcpoint.values = to_values
+
+        # reproject if different srid
+        if self.pcformat.srid != pcformat.srid:
+            '''
+            resultset = plpy.execute(
+                    "SELECT ST_AsBinary(ST_Transform('SRID={from_srid};POINT({X:.15f} {Y.15f})'::geometry, {to_srid}), 'NDR') AS shape".format({
+                    from_srid=self.pcformat.srid,
+                    to_srid=pcformat.srid,
+                    X=to_pcpoint.get_value('X'),
+                    Y=to_pcpoint.get_value('Y')
+                }),
+                1
+            )
+
+            if len(resultset) < 1:
+                plpy.error("Cannot transform PcPoint from SRID {from_srid} to {to_srid}".format(
+                    from_srid=self.pcformat.srid,
+                    to_srid=pcformat.srid
+                ))
+
+            s = struct.Struct('< B I d d')
+            shape_tuple = s.unpack(resultset[0]['shape'])
+
+            to_pcpoint.set_value('X', shape_tuple[-2])
+            to_pcpoint.set_value('Y', shape_tuple[-1])
+            '''
