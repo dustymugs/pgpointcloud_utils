@@ -1,5 +1,6 @@
 import struct
 import binascii
+from decimal import Decimal
 
 from .pcformat import PcDimension, PcFormat
 
@@ -11,11 +12,11 @@ class PcPoint(object):
 
     def __init__(
         self,
-        pcformat, values=[]
+        pcformat, values=None
     ):
 
         self._pcformat = None
-        self._values = []
+        self._raw_values = []
 
         if pcformat is not None:
             self.pcformat = pcformat
@@ -34,17 +35,63 @@ class PcPoint(object):
 
         self._pcformat = new_value
 
+        # the number of possible values is driven by 
+        num_dimensions = len(self._pcformat.dimensions)
+        num_values = len(self._raw_values)
+        if num_values < 1:
+            self._raw_values = [0. for x in xrange(num_dimensions)]
+        elif num_values > num_dimensions:
+            self._raw_values = self._raw_values[:num_dimensions]
+        elif num_values < num_dimensions:
+            self._raw_values += [0. for x in xrange(num_dimensions - num_values)]
+
+    @staticmethod
+    def _compute_processed_value(value, dimension):
+
+        if Decimal(dimension.scale) != Decimal(PcDimension.DEFAULT_SCALE):
+            return value * dimension.scale
+        else:
+            return value
+
+    @staticmethod
+    def _compute_raw_value(value, dimension):
+
+        if Decimal(dimension.scale) != Decimal(PcDimension.DEFAULT_SCALE):
+            return value / dimension.scale
+        else:
+            return value
+
     @property
     def values(self):
-        return self._values
+        '''
+        return processed values. raw values are never returned
+        '''
+
+        return map(
+            PcPoint._compute_processed_value,
+            self._raw_values,
+            self.pcformat.dimensions
+        )
 
     @values.setter
     def values(self, new_values):
+        '''
+        set raw values by converting provided values
+        '''
 
         if not isinstance(new_values, list):
             raise
 
-        self._values = new_values
+        dimensions = self.pcformat.dimensions
+        num_dimensions = len(dimensions)
+        if len(new_values) != num_dimensions:
+            raise
+
+        self._raw_values = map(
+            PcPoint._compute_raw_value,
+            new_values,
+            dimensions
+        )
 
     @classmethod
     def is_ndr(cls, data):
@@ -103,10 +150,10 @@ class PcPoint(object):
 
         values = [v for v in s.unpack(data)]
 
-        return PcPoint(
-            pcformat=pcformat,
-            values=values[len(PcPoint._HEADER_FORMAT):]
-        )
+        pt = PcPoint(pcformat=pcformat)
+        pt._raw_values = values[len(PcPoint._HEADER_FORMAT):]
+
+        return pt
 
     @classmethod
     def from_hex(cls, pcformat, hexstr):
@@ -129,7 +176,7 @@ class PcPoint(object):
             is_ndr=True,
             pcformat=self.pcformat
         ))
-        values = [1, self.pcformat.pcid] + self.values
+        values = [1, self.pcformat.pcid] + self._raw_values
 
         return s.pack(*values)
 
@@ -140,22 +187,44 @@ class PcPoint(object):
 
         return binascii.hexlify(self.as_binary())
 
-    def get_dimension(self, name):
+    def get_value(self, name_or_pos):
         '''
-        return the value of provided dimension name
-        '''
-
-        if self.pcformat is None:
-            raise
-
-        return self.values[self.pcformat.get_dimension_index(name)]
-
-    def set_dimension(self, name, value):
-        '''
-        set the value of provided dimension name
+        return the value of provided dimension name or position
         '''
 
         if self.pcformat is None:
             raise
 
-        self.values[self.pcformat.get_dimension_index(name)] = value
+        # get raw value
+        if isinstance(name_or_pos, int):
+            raw_value = self._raw_values[name_or_pos]
+        else:
+            raw_value = self._raw_values[self.pcformat.get_dimension_index(name_or_pos)]
+
+        dim = self.pcformat.get_dimension(name_or_pos)
+        if Decimal(dim.scale) != Decimal(PcDimension.DEFAULT_SCALE):
+            value = raw_value * dim.scale
+        else:
+            value = raw_value
+
+        return value
+
+    def set_value(self, name_or_pos, value):
+        '''
+        set the value of provided dimension name or position
+        '''
+
+        if self.pcformat is None:
+            raise
+
+        # scale if dimension has scale
+        dim = self.pcformat.get_dimension(name_or_pos)
+        if Decimal(dim.scale) != Decimal(PcDimension.DEFAULT_SCALE):
+            raw_value = value / dim.scale
+        else:
+            raw_value = value
+
+        if isinstance(name_or_pos, int): 
+            self._raw_values[name_or_pos] = raw_value
+        else:
+            self._raw_values[self.pcformat.get_dimension_index(name_or_pos)] = raw_value

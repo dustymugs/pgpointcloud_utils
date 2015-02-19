@@ -94,16 +94,18 @@ class TestPcPoint(unittest.TestCase):
         pt = PcPoint.from_hex(pcformat=self.pcformat, hexstr=self.hexstr)
         self.assertEqual(pt.as_hex().upper(), self.hexstr)
 
-    def test_get_dimension(self):
+    def test_get_value(self):
 
         pt = PcPoint.from_hex(pcformat=self.pcformat, hexstr=self.hexstr)
-        self.assertEqual(pt.get_dimension('X'), -12700.)
-        self.assertEqual(pt.get_dimension('Y'), 4500.)
-        self.assertEqual(pt.get_dimension('Z'), 12400.)
-        self.assertEqual(pt.get_dimension('Intensity'), 4.)
+        self.assertEqual(pt.get_value('X'), -127.)
+        self.assertEqual(pt.get_value('Y'), 45.)
+        self.assertEqual(pt.get_value('Z'), 124.)
+        self.assertEqual(pt.get_value('Intensity'), 4.)
 
-    def test_set_dimension(self):
+    def test_set_value(self):
 
         pt = PcPoint.from_hex(pcformat=self.pcformat, hexstr=self.hexstr)
-        pt.set_dimension('Intensity', 999.)
-        self.assertEqual(pt.get_dimension('Intensity'), 999.)
+        pt.set_value('X', -128.)
+        pt.set_value('Intensity', 999.)
+        self.assertEqual(pt.get_value('X'), -128.)
+        self.assertEqual(pt.get_value('Intensity'), 999.)

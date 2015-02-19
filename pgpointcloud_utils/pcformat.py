@@ -1,6 +1,9 @@
+from decimal import Decimal
 import xml.etree.ElementTree as ET
 
 class PcDimension(object):
+
+    DEFAULT_SCALE = 1.
 
     BYTE_1 = 1
     BYTE_2 = 2
@@ -55,13 +58,13 @@ class PcDimension(object):
 
     def __init__(
         self,
-        name=None, size=None, interpretation=None, scale=1
+        name=None, size=None, interpretation=None, scale=None
     ):
 
         self._name = None
         self._size = None
         self._interpretation = None
-        self._scale = 1.
+        self._scale = PcDimension.DEFAULT_SCALE
 
         if name is not None:
             self.name = name
@@ -122,6 +125,10 @@ class PcDimension(object):
         try:
             new_value = float(new_value)
         except:
+            raise
+
+        # scale cannot be zero
+        if Decimal(new_value) == Decimal(0.):
             raise
 
         self._scale = new_value
@@ -260,9 +267,19 @@ class PcFormat(object):
         frmt = ' '.join(frmt)
         return frmt
 
+    def get_dimension(self, name_or_pos):
+        '''
+        return the dimension by name or position
+        '''
+
+        if isinstance(name_or_pos, int):
+            return self.dimensions[name_or_pos]
+        else:
+            return self._dimension_lookups['name'][name_or_pos]
+
     def get_dimension_index(self, name):
         '''
-        return the index of the dimension in the format by name
+        return the index of the dimension by name
         '''
 
         if name not in self._dimension_lookups['name']:
