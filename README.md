@@ -20,6 +20,7 @@ Import GeoJSON files as pgPointCloud patches. This utility is a stripped version
 * dateutil
 * pytz
 * tzlocal
+* pyproj
 
 ## License
 

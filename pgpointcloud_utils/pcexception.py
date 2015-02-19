@@ -6,10 +6,10 @@ class PcException(Exception):
         for kw, arg in kwargs.iteritems():
             setattr(self, kw, arg)
 
-class PcInsufficentDataException(PcException):
+class PcRunTimeException(PcException):
 
     def __init__(self, **kwargs):
-        self.message = 'Insufficient data'
+        self.message = 'Runtime exception'
 
         super(PcInsufficentDataException, self).__init__(kwargs)
 

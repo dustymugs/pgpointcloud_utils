@@ -159,10 +159,11 @@ class PcDimension(object):
 
 class PcFormat(object):
 
-    def __init__(self, pcid=None, srid=None, dimensions=None):
+    def __init__(self, pcid=None, srid=None, proj4text=None, dimensions=None):
 
         self._pcid = None
         self._srid = None
+        self._proj4text = None
         self._dimensions = []
         self._dimension_lookup = {}
 
@@ -204,6 +205,21 @@ class PcFormat(object):
             )
 
         self._srid = new_value
+
+    @property
+    def proj4text(self):
+        return self._proj4text
+
+    @proj4text.setter
+    def proj4text(self, new_value):
+        try:
+            new_value = str(new_value)
+        except:
+            raise PcInvalidArgException(
+                message='Value cannot be treated as a string'
+            )
+
+        self._proj4text = new_value
 
     @property
     def dimensions(self):

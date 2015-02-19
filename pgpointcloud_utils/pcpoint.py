@@ -1,5 +1,6 @@
 import struct
 import binascii
+import pyproj
 from decimal import Decimal
 from numeric_string_parser import NumericStringParser
 
@@ -177,7 +178,7 @@ class PcPoint(object):
         '''
 
         if self.pcformat is None:
-            raise PcInsufficientDataException(
+            raise PcRunTimeException(
                 message='Cannot dump PcPoint without a PcFormat'
             )
 
@@ -202,7 +203,7 @@ class PcPoint(object):
         '''
 
         if self.pcformat is None:
-            raise PcInsufficientDataException(
+            raise PcRunTimeException(
                 message='Cannot get dimension value from PcPoint without PcFormat'
             )
 
@@ -226,7 +227,7 @@ class PcPoint(object):
         '''
 
         if self.pcformat is None:
-            raise PcInsufficientDataException(
+            raise PcRunTimeException(
                 message='Cannot set dimension value from PcPoint without PcFormat'
             )
 
@@ -402,26 +403,33 @@ class PcPoint(object):
 
         # reproject if different srid
         if self.pcformat.srid != pcformat.srid:
-            '''
-            resultset = plpy.execute(
-                    "SELECT ST_AsBinary(ST_Transform('SRID={from_srid};POINT({X:.15f} {Y.15f})'::geometry, {to_srid}), 'NDR') AS shape".format({
-                    from_srid=self.pcformat.srid,
-                    to_srid=pcformat.srid,
-                    X=to_pcpoint.get_value('X'),
-                    Y=to_pcpoint.get_value('Y')
-                }),
-                1
+
+            if (
+                self.pcformat.proj4text is None or
+                len(self.pcformat.proj4text) < 1 or
+                pcformat.proj4text is None or
+                len(pcformat.proj4text) < 1
+            ):
+                raise PcRunTimeException(
+                    message='Cannot reproject coordinates. Missing proj4text'
+                )
+
+            try:
+                from_proj = pyproj.Proj(self.pcformat.proj4text)
+                to_proj = pyproj.Proj(pcformat.proj4text)
+            except:
+                raise PcRunTimeException(
+                    message='Cannot reproject coordinates. Invalid proj4text'
+                )
+
+            to_x, to_y = pyproj.transform(
+                from_proj,
+                to_proj,
+                to_pcpoint.get_value('X'),
+                to_pcpoint.get_value('Y')
             )
 
-            if len(resultset) < 1:
-                plpy.error("Cannot transform PcPoint from SRID {from_srid} to {to_srid}".format(
-                    from_srid=self.pcformat.srid,
-                    to_srid=pcformat.srid
-                ))
+            to_pcpoint.set_value('X', to_x)
+            to_pcpoint.set_value('Y', to_y)
 
-            s = struct.Struct('< B I d d')
-            shape_tuple = s.unpack(resultset[0]['shape'])
-
-            to_pcpoint.set_value('X', shape_tuple[-2])
-            to_pcpoint.set_value('Y', shape_tuple[-1])
-            '''
+        return to_pcpoint
