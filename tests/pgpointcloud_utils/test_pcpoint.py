@@ -109,3 +109,9 @@ class TestPcPoint(unittest.TestCase):
         pt.set_value('Intensity', 999.)
         self.assertEqual(pt.get_value('X'), -128.)
         self.assertEqual(pt.get_value('Intensity'), 999.)
+
+    def test_copy(self):
+
+        pt = PcPoint.from_hex(pcformat=self.pcformat, hexstr=self.hexstr)
+        copy_pt = pt.copy()
+        self.assertNotEqual(pt, copy_pt)

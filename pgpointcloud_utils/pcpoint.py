@@ -1,3 +1,4 @@
+import copy
 import struct
 import binascii
 import pyproj
@@ -249,7 +250,7 @@ class PcPoint(object):
         '''
 
         pt = PcPoint(pcformat=self.pcformat)
-        pt._raw_values = copy.deep_copy(self._raw_values)
+        pt._raw_values = copy.deepcopy(self._raw_values)
 
         return pt
 
