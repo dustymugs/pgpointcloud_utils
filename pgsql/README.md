@@ -20,7 +20,7 @@ pcpoint __PC_Transform__(_pt_ pcpoint, _pcid_ integer, _mapping_ json)
 
 Transform a PcPoint from one schema to another by specifying the destination PCID and a JSON object that maps attributes between schemas.
 
-If the PcPoint's SRID differs from the destination PCID's SRID, the coordinates X, Y, Z will be projected.
+If the PcPoint's SRID differs from the destination PCID's SRID, the coordinates X and Y will be projected.
 
 The structure of _mapping_ is a JSON dictionary. Each key is a dimension position or name in the destination schema. The value is the position, name or object operating upon one or more dimensions of the PcPoint's schema.
 
