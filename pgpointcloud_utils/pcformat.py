@@ -285,7 +285,7 @@ class PcFormat(object):
             )
 
         # second pass, convert dict to list for guaranteed order
-        _dimensions = [None for x in xrange(len(dimensions))]
+        _dimensions = [None] * len(dimensions)
         for position, dimension in dimensions.iteritems():
             _dimensions[position] = dimension
         frmt.dimensions = _dimensions
@@ -311,7 +311,8 @@ class PcFormat(object):
         '''
 
         if isinstance(name_or_pos, int):
-            return self.dimensions[name_or_pos]
+            # position is 1-based
+            return self.dimensions[name_or_pos - 1]
         else:
             return self._dimension_lookups['name'][name_or_pos]
 

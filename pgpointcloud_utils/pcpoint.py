@@ -45,11 +45,11 @@ class PcPoint(object):
         num_dimensions = len(self._pcformat.dimensions)
         num_values = len(self._raw_values)
         if num_values < 1:
-            self._raw_values = [0. for x in xrange(num_dimensions)]
+            self._raw_values = [0.] * num_dimensions
         elif num_values > num_dimensions:
             self._raw_values = self._raw_values[:num_dimensions]
         elif num_values < num_dimensions:
-            self._raw_values += [0. for x in xrange(num_dimensions - num_values)]
+            self._raw_values += ([0.] * (num_dimensions - num_values))
 
     @staticmethod
     def _compute_processed_value(value, dimension):
@@ -210,7 +210,8 @@ class PcPoint(object):
 
         # get raw value
         if isinstance(name_or_pos, int):
-            raw_value = self._raw_values[name_or_pos]
+            # position is 1-based
+            raw_value = self._raw_values[name_or_pos - 1]
         else:
             raw_value = self._raw_values[self.pcformat.get_dimension_index(name_or_pos)]
 
@@ -240,7 +241,8 @@ class PcPoint(object):
             raw_value = value
 
         if isinstance(name_or_pos, int): 
-            self._raw_values[name_or_pos] = raw_value
+            # position is 1-based
+            self._raw_values[name_or_pos - 1] = raw_value
         else:
             self._raw_values[self.pcformat.get_dimension_index(name_or_pos)] = raw_value
 
@@ -290,10 +292,11 @@ class PcPoint(object):
         # run conversion
         #
 
+        # placeholders for if expressions are needed
         expr_assignment = {}
         nsp = None
 
-        to_values = [0. for x in xrange(num_to_dimensions)]
+        to_values = [0.] * num_to_dimensions
         map_keys = mapping.keys()
         for to_idx in xrange(num_to_dimensions):
 
@@ -328,7 +331,7 @@ class PcPoint(object):
 
                 if by_position:
 
-                    to_values[to_idx] = self.get_value(to_idx)
+                    to_values[to_idx] = self.get_value(to_position)
 
                 else:
 
@@ -337,8 +340,7 @@ class PcPoint(object):
             # integer, use as index
             elif isinstance(map_from, int):
 
-                # mapping indexes are 1-based while internal is 0-based
-                to_values[to_idx] = self.get_value(map_from - 1)
+                to_values[to_idx] = self.get_value(map_from)
 
             # string, use as dimension name
             elif isinstance(map_from, str):
@@ -360,8 +362,9 @@ class PcPoint(object):
                     if len(expr_assignment) < 1:
 
                         for from_idx in xrange(num_from_dimensions):
+                            from_position = from_idx + 1
 
-                            from_value = str(self.get_value(from_idx))
+                            from_value = str(self.get_value(from_position))
                             expr_assignment['$' + str(from_idx + 1)] = from_value
                             expr_assignment['$' + from_dimensions[from_idx].name] = from_value
 
@@ -370,7 +373,7 @@ class PcPoint(object):
 
                     # substitute values for placeholders
                     for k, v in expr_assignment.iteritems():
-                        expr.replace(k, v)
+                        expr = expr.replace(k, v)
 
                     # evaluate expression
                     to_values[to_idx] = nsp.eval(expr)

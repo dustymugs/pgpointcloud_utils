@@ -66,6 +66,7 @@ class TestPcPoint(unittest.TestCase):
             srid=self.srid,
             schema=self.schema
         )
+        self.pcformat.proj4text = '+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs '
 
         self.hexstr = '010100000064CEFFFF94110000703000000400'.upper()
 
@@ -115,3 +116,162 @@ class TestPcPoint(unittest.TestCase):
         pt = PcPoint.from_hex(pcformat=self.pcformat, hexstr=self.hexstr)
         copy_pt = pt.copy()
         self.assertNotEqual(pt, copy_pt)
+        self.assertEqual(pt.pcformat, copy_pt.pcformat)
+        self.assertEqual(pt.values, copy_pt.values)
+
+    def test_transform(self):
+
+        schema = """<?xml version="1.0" encoding="UTF-8"?>
+<pc:PointCloudSchema xmlns:pc="http://pointcloud.org/schemas/PC/1.1" 
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <pc:dimension>
+    <pc:position>1</pc:position>
+    <pc:size>4</pc:size>
+    <pc:description>X coordinate as a long integer. You must use the 
+                    scale and offset information of the header to 
+                    determine the double value.</pc:description>
+    <pc:name>X</pc:name>
+    <pc:interpretation>int32_t</pc:interpretation>
+    <pc:scale>0.01</pc:scale>
+  </pc:dimension>
+  <pc:dimension>
+    <pc:position>2</pc:position>
+    <pc:size>4</pc:size>
+    <pc:description>Y coordinate as a long integer. You must use the 
+                    scale and offset information of the header to 
+                    determine the double value.</pc:description>
+    <pc:name>Y</pc:name>
+    <pc:interpretation>int32_t</pc:interpretation>
+    <pc:scale>0.01</pc:scale>
+  </pc:dimension>
+  <pc:dimension>
+    <pc:position>3</pc:position>
+    <pc:size>4</pc:size>
+    <pc:description>Z coordinate as a long integer. You must use the 
+                    scale and offset information of the header to 
+                    determine the double value.</pc:description>
+    <pc:name>Z</pc:name>
+    <pc:interpretation>int32_t</pc:interpretation>
+    <pc:scale>0.01</pc:scale>
+  </pc:dimension>
+  <pc:dimension>
+    <pc:position>4</pc:position>
+    <pc:size>2</pc:size>
+    <pc:description>The intensity value is the integer representation 
+                    of the pulse return magnitude. This value is optional 
+                    and system specific. However, it should always be 
+                    included if available.</pc:description>
+    <pc:name>Intensity</pc:name>
+    <pc:interpretation>uint16_t</pc:interpretation>
+    <pc:scale>1</pc:scale>
+  </pc:dimension>
+  <pc:dimension>
+    <pc:position>5</pc:position>
+    <pc:size>8</pc:size>
+    <pc:name>Reflectivity</pc:name>
+    <pc:interpretation>double</pc:interpretation>
+  </pc:dimension>
+  <pc:metadata>
+    <Metadata name="compression">dimensional</Metadata>
+  </pc:metadata>
+</pc:PointCloudSchema>
+"""
+
+        pt = PcPoint.from_hex(pcformat=self.pcformat, hexstr=self.hexstr)
+
+        #
+        # simple test
+        #
+
+        pcid = 2
+        srid = 4326
+
+        pcformat = PcFormat.import_format(
+            pcid=pcid,
+            srid=srid,
+            schema=schema
+        )
+
+        mapping = {
+            'X': 1,
+            2: None,
+            'Z': 3,
+            4: 'Intensity',
+            'Reflectivity': {
+                'value': -9999
+            }
+        }
+
+        tpt = pt.transform(pcformat, mapping=mapping)
+        self.assertNotEqual(pt, tpt)
+        self.assertEqual(tpt.pcformat, pcformat)
+        self.assertEqual(len(tpt.values), len(pcformat.dimensions))
+
+        self.assertEqual(tpt.get_value('X'), pt.get_value('X'))
+        self.assertEqual(tpt.get_value(2), pt.get_value(2))
+        self.assertEqual(tpt.get_value('Z'), pt.get_value(3))
+        self.assertEqual(tpt.get_value(4), pt.get_value('Intensity'))
+        self.assertEqual(tpt.get_value('Reflectivity'), -9999)
+
+        #
+        # expression
+        #
+
+        pcid = 2
+        srid = 4326
+
+        pcformat = PcFormat.import_format(
+            pcid=pcid,
+            srid=srid,
+            schema=schema
+        )
+
+        mapping = {
+            'X': 1,
+            2: None,
+            'Z': 3,
+            4: 'Intensity',
+            'Reflectivity': {
+                'expression': '$Intensity'
+            }
+        }
+
+        tpt = pt.transform(pcformat, mapping=mapping)
+        self.assertNotEqual(pt, tpt)
+        self.assertEqual(tpt.pcformat, pcformat)
+        self.assertEqual(len(tpt.values), len(pcformat.dimensions))
+        self.assertEqual(tpt.get_value('Reflectivity'), pt.get_value('Intensity'))
+
+        #
+        # transform
+        #
+
+        pcid = 2
+        srid = 32609
+
+        pcformat = PcFormat.import_format(
+            pcid=pcid,
+            srid=srid,
+            schema=schema
+        )
+        pcformat.proj4text = '+proj=utm +zone=9 +datum=WGS84 +units=m +no_defs '
+
+        mapping = {
+            'X': 1,
+            2: None,
+            'Z': 3,
+            4: 'Intensity',
+            'Reflectivity': {
+                'expression': '$Intensity'
+            }
+        }
+
+        tpt = pt.transform(pcformat, mapping=mapping)
+        self.assertNotEqual(pt, tpt)
+        self.assertEqual(tpt.pcformat, pcformat)
+        self.assertEqual(len(tpt.values), len(pcformat.dimensions))
+        self.assertNotEqual(tpt.get_value('X'), pt.get_value('X'))
+        self.assertAlmostEqual(tpt.get_value('X'), 657630.64073026)
+        self.assertNotEqual(tpt.get_value('Y'), pt.get_value('Y'))
+        self.assertAlmostEqual(tpt.get_value('Y'), 4984896.17127251)
+        self.assertEqual(tpt.get_value('Z'), pt.get_value('Z'))
