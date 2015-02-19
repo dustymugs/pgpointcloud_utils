@@ -269,7 +269,7 @@ class PcFormat(object):
         # first pass, build dict of dimensions
         dimensions = {}
         for dim in root.findall('pc:dimension', namespaces):
-            position = int(dim.find('pc:position', namespaces).text) - 1
+            index = int(dim.find('pc:position', namespaces).text) - 1
             size = dim.find('pc:size', namespaces).text
             name = dim.find('pc:name', namespaces).text
             interpretation = dim.find('pc:interpretation', namespaces).text
@@ -277,7 +277,7 @@ class PcFormat(object):
             if scale is not None:
                 scale = scale.text
 
-            dimensions[position] = PcDimension(
+            dimensions[index] = PcDimension(
                 name=name,
                 size=size,
                 interpretation=interpretation,
@@ -286,8 +286,8 @@ class PcFormat(object):
 
         # second pass, convert dict to list for guaranteed order
         _dimensions = [None] * len(dimensions)
-        for position, dimension in dimensions.iteritems():
-            _dimensions[position] = dimension
+        for index, dimension in dimensions.iteritems():
+            _dimensions[index] = dimension
         frmt.dimensions = _dimensions
 
         return frmt
@@ -297,9 +297,9 @@ class PcFormat(object):
 
         frmt = []
         num_dimensions = len(self.dimensions)
-        for position in xrange(num_dimensions):
+        for index in xrange(num_dimensions):
             frmt.append(
-                self.dimensions[position].struct_format
+                self.dimensions[index].struct_format
             )
 
         frmt = ' '.join(frmt)
@@ -307,7 +307,7 @@ class PcFormat(object):
 
     def get_dimension(self, name_or_pos):
         '''
-        return the dimension by name or position
+        return the dimension by name or position (1-based)
         '''
 
         if isinstance(name_or_pos, int):

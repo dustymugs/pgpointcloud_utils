@@ -200,7 +200,7 @@ class PcPoint(object):
 
     def get_value(self, name_or_pos):
         '''
-        return the value of provided dimension name or position
+        return the value of provided dimension name or position (1-based)
         '''
 
         if self.pcformat is None:
@@ -225,7 +225,7 @@ class PcPoint(object):
 
     def set_value(self, name_or_pos, value):
         '''
-        set the value of provided dimension name or position
+        set the value of provided dimension name or position (1-based)
         '''
 
         if self.pcformat is None:
