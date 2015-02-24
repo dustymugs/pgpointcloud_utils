@@ -7,7 +7,7 @@ Import OGR-compatible datasets as pgPointCloud patches
 * psycopg2
 * ogr
 * shapely
-* dateutil
+* dateutils
 * pytz
 * tzlocal
 
