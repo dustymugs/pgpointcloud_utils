@@ -6,7 +6,7 @@ Import GeoJSON files as pgPointCloud patches. This utility is a stripped version
 
 * psycopg2
 * shapely
-* dateutil
+* dateutils
 * pytz
 * tzlocal
 
