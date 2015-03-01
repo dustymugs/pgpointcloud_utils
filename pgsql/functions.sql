@@ -1,3 +1,5 @@
+SET search_path = pointcloud;
+
 CREATE OR REPLACE FUNCTION _PC_Transform(pt pcpoint, pcid integer, mapping json, txid bigint DEFAULT txid_current())
 RETURNS pcpoint
 AS $$
@@ -11,7 +13,7 @@ def check_cache_txid():
     last_txid = SD.get('last_txid', None)
     if last_txid is None or last_txid != txid:
         SD['last_txid'] = txid
-				SD['formats'] = {}
+        SD['formats'] = {}
 
 def add_to_cache(prefix, key, value):
 
@@ -70,12 +72,12 @@ raw_mapping = json.loads(mapping)
 # process keys
 _mapping = {}
 for k, v in raw_mapping.iteritems():
-	try:
-		_k = int(k)
-	except:
-		_k = k
+    try:
+        k = int(k)
+    except:
+        _k = k
 
-	_mapping[_k] = v
+    _mapping[_k] = v
 
 # deserialize pt
 from_pcpoint = PcPoint.from_hex(from_format, pt)
@@ -92,3 +94,18 @@ RETURNS pcpoint
 AS $$
 	SELECT _PC_Transform($1, $2, $3)
 $$ LANGUAGE sql STABLE;
+
+CREATE OR REPLACE FUNCTION PC_Transform(pa pcpatch, pcid integer, mapping json)
+RETURNS pcpatch
+AS $$
+DECLARE
+	pt pcpoint;
+	pts pcpoint[] DEFAULT ARRAY[]::pcpoint[];
+BEGIN
+	FOR pt IN SELECT PC_Explode(pa) LOOP
+	  pts := pts || _PC_Transform(pt, pcid, mapping);
+	END LOOP;
+
+	RETURN PC_Patch(pts);
+END;
+$$ LANGUAGE plpgsql STABLE;
