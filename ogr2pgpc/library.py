@@ -44,6 +44,7 @@ Config = {
     'timezone': get_localzone(),
     'copy_mode': False,
     'buffer_size': 1000,
+    'patch_size': 400
 }
 
 DSIn = None
@@ -528,7 +529,8 @@ def import_layer(layer, file_table, pcid, fields):
         temp_table,
         layer,
         Config.get('metadata', None),
-        file_name
+        file_name,
+        max_points_per_patch=Config.get('patch_size', 400)
     )
 
     return True

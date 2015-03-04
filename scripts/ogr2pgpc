@@ -23,6 +23,12 @@ def _init_argparser():
         help="""Flush to database every X records"""
     )
     arg_parser.add_argument(
+        '-z', '--patch',
+        dest='patch_size',
+        default=400,
+        help="""Maximum number of points per patch"""
+    )
+    arg_parser.add_argument(
         '-m', '--metadata',
         dest='metadata',
         default=None,
@@ -147,7 +153,8 @@ def process_args(args):
         'datetime': getattr(args, 'datetime', []),
         'timezone': getattr(args, 'timezone', None),
         'copy_mode': getattr(args, 'copy_mode', False),
-        'buffer_size': getattr(args, 'buffer_size', 1000)
+        'buffer_size': getattr(args, 'buffer_size', 1000),
+        'patch_size': getattr(args, 'patch_size', 400)
     }
 
     if config['timezone'] is not None:
