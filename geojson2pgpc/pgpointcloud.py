@@ -12,6 +12,8 @@ from cStringIO import StringIO
 import struct
 import binascii
 
+from pgpointcloud_utils import PcRunTimeException, PcInvalidArgException
+
 # mapping between OGR datatypes and pgPointCloud datatypes
 DATA_TYPE_MAPPING = {
     bool: {
@@ -148,7 +150,9 @@ WHERE used.pcid IS NULL
         if cursor.rowcount > 0:
             pcid = cursor.fetchone()[0]
         else:
-            raise
+            raise PcRunTimeException(
+                message='Query error getting the next available PCID'
+            )
 
         cursor.execute("""
 INSERT INTO pointcloud_formats (pcid, srid, schema)
@@ -180,7 +184,9 @@ def create_pcpatch_table(dbconn, table_name, table_action):
 SELECT 1 FROM %s
                 """, [AsIs(table_name)])
             except psycopg2.Error:
-                raise Exception('Table not found: %s' % table_name)
+                raise PcInvalidArgException(
+                    message='Table not found: %s' % table_name
+                )
 
             return
 
@@ -203,7 +209,9 @@ CREATE TABLE %s (
 
     except psycopg2.Error:
         dbconn.rollback()
-        raise
+        raise PcRunTimeException(
+            message='Query error creating PcPatch table'
+        )
     finally:
         cursor.close()
 
@@ -241,7 +249,9 @@ VALUES (%%s::pcpoint, %%s)
 
     except psycopg2.Error:
         dbconn.rollback()
-        raise
+        raise PcRunTimeException(
+            message='Query error inserting PcPoints'
+        )
     finally:
         cursor.close()
 
@@ -266,7 +276,9 @@ def copy_pcpoints(dbconn, table_name, wkb_set, group):
 
     except psycopg2.Error:
         dbconn.rollback()
-        raise
+        raise PcRunTimeException(
+            message='Query error copying PcPoints'
+        )
     finally:
         cursor.close()
 
@@ -411,7 +423,9 @@ HAVING count(points.*) > %s
 
     except psycopg2.Error:
         dbconn.rollback()
-        raise
+        raise PcRunTimeException(
+            message='Query error computing grid for PcPatches'
+        )
     finally:
         cursor.close()
 
@@ -489,7 +503,9 @@ FROM (
 
     except psycopg2.Error:
         dbconn.rollback()
-        raise
+        raise PcRunTimeException(
+            message='Query error inserting PcPatches'
+        )
     finally:
         cursor.close()
 
@@ -518,7 +534,9 @@ ON COMMIT DROP;
 
     except psycopg2.Error:
         dbconn.rollback()
-        raise
+        raise PcRunTimeException(
+            message='Query error creating temporary PcPoint table'
+        )
     finally:
         cursor.close()
 

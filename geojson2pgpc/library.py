@@ -21,6 +21,8 @@ from .pgpointcloud import (
     insert_pcpoints, copy_pcpoints, insert_pcpatches, make_wkb_point
 )
 
+from pgpointcloud_utils import PcRunTimeException, PcInvalidArgException
+
 COORDINATES = ['X', 'Y', 'Z']
 
 OVERRIDE_INPUT_FORMAT = [
@@ -57,7 +59,9 @@ def open_input_file(f):
     DSIn = json.load(open(f, 'r'))
 
     if DSIn is None or DSIn.get('type', None) != 'FeatureCollection':
-        raise
+        raise PcInvalidArgException(
+            message='Invalid input file'
+        )
 
     return DSIn
 
@@ -85,7 +89,9 @@ def interpret_fields(layer):
     }
 
     if len(layer) < 1:
-        raise
+        raise PcRunTimeException(
+            message='Layer has no fields'
+        )
 
     add_coordinate(fields['dimension'], 'X')
     add_coordinate(fields['dimension'], 'Y')
@@ -299,7 +305,9 @@ def convert_date_to_seconds(the_date):
             the_date = the_date.date()
         # no can do
         else:
-            raise
+            raise PcInvalidArgException(
+                message='Value cannot be coerced into a Date object'
+            )
 
     the_date = datetime.datetime.combine(
         the_date,
@@ -324,11 +332,15 @@ def convert_time_to_seconds(the_time):
             the_time = the_time.time()
 
             if the_time.tzinfo is None:
-                raise
+                raise PcInvalidArgException(
+                    message='Time has no timezone'
+                )
 
         # no can do
         else:
-            raise
+            raise PcInvalidArgException(
+                message='Value cannot be coerced into a Time object'
+            )
 
     return (
         the_time.astimezone(pytz.UTC) -
@@ -544,7 +556,9 @@ def convert_file():
     layer = DSIn['features']
 
     if not layer:
-        raise
+        raise PcRunTimeException(
+            message='Input file has no layer'
+        )
 
     metadata = DSIn.get('properties', None)
     if metadata and not Config.get('metadata', None):
@@ -567,6 +581,6 @@ def geojson_to_pgpointcloud(config):
         DBConn.commit()
     except:
         DBConn.rollback()
-        raise
+        raise PcRunTimeException()
     finally:
         DBConn.close()
