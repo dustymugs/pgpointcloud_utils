@@ -11,11 +11,11 @@ class PcRunTimeException(PcException):
     def __init__(self, **kwargs):
         self.message = 'Runtime exception'
 
-        super(PcInsufficentDataException, self).__init__(kwargs)
+        super(PcRunTimeException, self).__init__(**kwargs)
 
 class PcInvalidArgException(PcException):
 
     def __init__(self, **kwargs):
         self.message = 'Invalid argument'
 
-        super(PcInvalidArgException, self).__init__(kwargs)
+        super(PcInvalidArgException, self).__init__(**kwargs)

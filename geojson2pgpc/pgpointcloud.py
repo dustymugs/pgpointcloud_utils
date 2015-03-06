@@ -333,6 +333,10 @@ FROM extent
 def _compute_patch_size(dbconn, temp_table, max_points_per_patch=400):
 
     def get_patch_count(cursor, temp_table, dim, max_points):
+        '''
+        returns the number of patches whose point count > max_points
+        '''
+
         cursor.execute("""
 WITH raw_extent AS (
     SELECT
@@ -384,39 +388,58 @@ HAVING count(points.*) > %s
         # starting patch size in meters (due to UTM zone usage)
         patch_size = int(max(width / 10., height / 10.))
 
-        old_patch_size = 0
-        old_patch_count = 0
+        old_patch_sizes = [0]
+        old_patch_counts = [0]
         delta = None
         long_tail_count = 0
 
         while True:
 
+            # patch size less than 1
+            # means no reasonable patch size worked
+            if patch_size < 1:
+
+                # use largest patch_size that had
+                # the least number of patches over max points per patch
+
+                min_patch_count = min(old_patch_counts[1:])
+                max_patch_size = -1
+
+                for idx in xrange(len(old_patch_counts) -  1, 0, -1):
+                    if (
+                        old_patch_counts[idx] == min_patch_count and
+                        old_patch_sizes[idx] > max_patch_size
+                    ):
+                        max_patch_size = old_patch_sizes[idx]
+
+                patch_size = max_patch_size
+                break
 
             patch_count = \
                 get_patch_count(cursor, temp_table, patch_size, max_points_per_patch)
 
-            if abs(patch_size - old_patch_size) <= 1:
+            if abs(patch_size - old_patch_sizes[-1]) <= 1:
                 if patch_count == 0:
                     if long_tail_count >= 5:
-                        patch_size = old_patch_size
+                        patch_size = old_patch_sizes[-1]
                         break
-                    elif patch_size > old_patch_size:
+                    elif patch_size > old_patch_sizes[-1]:
                         long_tail_count += 1
-                elif old_patch_count == 0:
-                    patch_size = old_patch_size
+                elif old_patch_counts[-1] == 0:
+                    patch_size = old_patch_sizes[-1]
                     break
-            elif long_tail_count > 0 and patch_count > 0 and old_patch_count == 0:
-                patch_size = old_patch_size
+            elif long_tail_count > 0 and patch_count > 0 and old_patch_counts[-1] == 0:
+                patch_size = old_patch_sizes[-1]
                 break
 
-            delta = max(abs(patch_size - old_patch_size) / 2, 1)
+            delta = max(abs(patch_size - old_patch_sizes[-1]) / 2, 1)
             if patch_count > 0:
                 delta *= -1
 
-            old_patch_size = patch_size
+            old_patch_sizes.append(patch_size)
             patch_size += delta
 
-            old_patch_count = patch_count
+            old_patch_counts.append(patch_count)
 
         cols = int(math.ceil(width / patch_size))
         rows = int(math.ceil(height / patch_size))
