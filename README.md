@@ -21,6 +21,7 @@ Import GeoJSON files as pgPointCloud patches. This utility is a stripped version
 * pytz
 * tzlocal
 * pyproj
+* pyparsing
 
 ## License
 
