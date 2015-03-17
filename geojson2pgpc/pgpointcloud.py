@@ -388,6 +388,10 @@ HAVING count(points.*) > %s
         # starting patch size in meters (due to UTM zone usage)
         patch_size = int(max(width / 10., height / 10.))
 
+        # no patch size, any patch size is valid
+        if patch_size < 1:
+            return 100
+
         old_patch_sizes = [0]
         old_patch_counts = [0]
         delta = None
