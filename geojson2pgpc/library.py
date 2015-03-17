@@ -521,6 +521,11 @@ def convert_layer(layer, file_name, file_table):
         # add schema to database
         pcid = add_pc_schema(DBConn, pc_schema, srid)
 
+        if pcid is None:
+            raise PcRunTimeException(
+                message='Cannot create pointcloud schema'
+            )
+
     # do the actual import
     import_layer(layer, file_table, pcid, fields)
 
