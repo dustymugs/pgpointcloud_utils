@@ -12,6 +12,10 @@ class PcPoint(object):
 
     _dimensions = []
 
+    # header format
+    #
+    # byte (endian)
+    # uint32 (pcid)
     _HEADER_FORMAT = ['B', 'I']
 
     def __init__(
