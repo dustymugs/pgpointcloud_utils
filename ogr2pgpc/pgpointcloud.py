@@ -80,6 +80,7 @@ def build_pc_dimension(doc, dimension, index):
         elif dimension['type']['source'] == ogr.OFTDateTime:
             pc_description.text = 'datetime as number of seconds UTC from UNIX epoch'
 
+    '''
     pc_metadata = ETree.Element('pc:metadata')
     pc_dimension.append(pc_metadata)
 
@@ -91,6 +92,7 @@ def build_pc_dimension(doc, dimension, index):
     data_type = ETree.Element('datatype')
     ogr_.append(data_type)
     data_type.text = ogr.GetFieldTypeName(dimension['type']['source'])
+    '''
 
 def build_pc_schema(fields):
     XML_DECLARATION = '<?xml version="1.0" encoding="UTF-8"?>'

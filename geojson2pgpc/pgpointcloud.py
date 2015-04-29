@@ -85,6 +85,7 @@ def build_pc_dimension(doc, dimension, index):
         elif dimension['type']['source'] == datetime.datetime:
             pc_description.text = 'datetime as number of seconds UTC from UNIX epoch'
 
+    '''
     pc_metadata = ETree.Element('pc:metadata')
     pc_dimension.append(pc_metadata)
 
@@ -96,6 +97,7 @@ def build_pc_dimension(doc, dimension, index):
     data_type = ETree.Element('datatype')
     python_.append(data_type)
     data_type.text = str(dimension['type']['source'])
+    '''
 
 def build_pc_schema(fields):
     XML_DECLARATION = '<?xml version="1.0" encoding="UTF-8"?>'
