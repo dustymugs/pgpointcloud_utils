@@ -582,11 +582,10 @@ def convert_layer(layer, pcid, fields, file_table):
     # do the actual import
     import_layer(layer, file_table, pcid, fields)
 
-    print 'Layer "%s" has been imported into Table "%s" with PCID "%s" and SRID "%s"' % (
+    print 'Layer "%s" has been imported into Table "%s" with PCID "%s"' % (
         layer.GetName(),
         file_table,
-        pcid,
-        srid
+        pcid
     )
 
 def convert_file():
