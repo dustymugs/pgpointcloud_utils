@@ -547,11 +547,10 @@ def import_layer(layer, file_table, pcid, fields):
 
     return True
 
-def get_pcid(layer):
+def get_pcid(layer, fields):
 
     # process fields
     # find what to group by, what to ignore, what to process
-    fields = interpret_fields(layer)
 
     if not fields['dimension']:
         return
@@ -578,7 +577,7 @@ def get_pcid(layer):
                 message='Cannot create pointcloud schema'
             )
 
-def convert_layer(layer, pcid, file_table):
+def convert_layer(layer, pcid, fields, file_table):
 
     # do the actual import
     import_layer(layer, file_table, pcid, fields)
@@ -606,7 +605,9 @@ def convert_file():
         layer = DSIn.GetLayerByName(layers[0])
     else:
         layer = DSIn.GetLayerByIndex(layers[0])
-    pcid = get_pcid(layer)
+
+    fields = interpret_fields(layer)
+    pcid = get_pcid(layer, fields)
 
     table_name = Config.get('table_name', None)
     if table_name is None:
@@ -638,7 +639,7 @@ def convert_file():
                 message='Layer not found'
             )
 
-        convert_layer(layer, pcid, table_name)
+        convert_layer(layer, pcid, fields, table_name)
 
 def ogr_to_pgpointcloud(config):
 

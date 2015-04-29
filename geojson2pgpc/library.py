@@ -500,11 +500,10 @@ def import_layer(layer, file_table, pcid, fields):
 
     return True
 
-def get_pcid(layer):
+def get_pcid(layer, fields):
 
     # process fields
     # find what to group by, what to ignore, what to process
-    fields = interpret_fields(layer)
 
     if not fields['dimension']:
         return
@@ -533,7 +532,7 @@ def get_pcid(layer):
 
     return pcid
 
-def convert_layer(layer, pcid, file_name, file_table):
+def convert_layer(layer, pcid, fields, file_name, file_table):
 
     # do the actual import
     import_layer(layer, file_table, pcid, fields)
@@ -554,7 +553,8 @@ def convert_file():
             message='Input file has no layer'
         )
 
-    pcid = get_pcid(layer)
+    fields = interpret_fields(layer)
+    pcid = get_pcid(layer, fields)
 
     metadata = DSIn.get('properties', None)
     if metadata and not Config.get('metadata', None):
@@ -580,7 +580,7 @@ def convert_file():
         table_action
     )
 
-    convert_layer(layer, pcid, file_name, table_name)
+    convert_layer(layer, pcid, fields, file_name, table_name)
 
 def geojson_to_pgpointcloud(config):
 
