@@ -500,7 +500,7 @@ def import_layer(layer, file_table, pcid, fields):
 
     return True
 
-def convert_layer(layer, file_name, file_table):
+def get_pcid(layer):
 
     # process fields
     # find what to group by, what to ignore, what to process
@@ -518,13 +518,22 @@ def convert_layer(layer, file_name, file_table):
         # build pointcloud schema
         pc_schema = build_pc_schema(fields)
 
-        # add schema to database
-        pcid = add_pc_schema(DBConn, pc_schema, srid)
+        retry = 0
+        pcid = None
+        while pcid is None and retry < 5:
+            # add schema to database
+            pcid = add_pc_schema(DBConn, pc_schema, srid)
+            time.sleep(1)
+            retry += 1
 
         if pcid is None:
             raise PcRunTimeException(
                 message='Cannot create pointcloud schema'
             )
+
+    return pcid
+
+def convert_layer(layer, pcid, file_name, file_table):
 
     # do the actual import
     import_layer(layer, file_table, pcid, fields)
@@ -537,6 +546,19 @@ def convert_layer(layer, file_name, file_table):
     )
 
 def convert_file():
+
+    layer = DSIn['features']
+
+    if not layer:
+        raise PcRunTimeException(
+            message='Input file has no layer'
+        )
+
+    pcid = get_pcid(layer)
+
+    metadata = DSIn.get('properties', None)
+    if metadata and not Config.get('metadata', None):
+        Config['metadata'] = metadata
 
     file_name = Config.get('input_file', None)
     table_name = Config.get('table_name', None)
@@ -558,18 +580,7 @@ def convert_file():
         table_action
     )
 
-    layer = DSIn['features']
-
-    if not layer:
-        raise PcRunTimeException(
-            message='Input file has no layer'
-        )
-
-    metadata = DSIn.get('properties', None)
-    if metadata and not Config.get('metadata', None):
-        Config['metadata'] = metadata
-
-    convert_layer(layer, file_name, table_name)
+    convert_layer(layer, pcid, file_name, table_name)
 
 def geojson_to_pgpointcloud(config):
 

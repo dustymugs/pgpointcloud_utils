@@ -163,6 +163,8 @@ VALUES (%s, %s, %s)
             pc_schema
         ))
 
+        dbconn.commit()
+
     except psycopg2.Error:
         dbconn.rollback()
         return None

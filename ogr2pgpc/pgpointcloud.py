@@ -157,6 +157,8 @@ WHERE used.pcid IS NULL
             )
         )
 
+        dbconn.commit()
+
     except psycopg2.Error:
         dbconn.rollback()
         return None
