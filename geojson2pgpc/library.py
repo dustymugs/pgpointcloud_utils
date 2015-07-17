@@ -596,6 +596,6 @@ def geojson_to_pgpointcloud(config):
         DBConn.commit()
     except:
         DBConn.rollback()
-        raise PcRunTimeException()
+        raise
     finally:
         DBConn.close()
