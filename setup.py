@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='pgpointcloud_utils',
-    version='0.1.6',
+    version='0.1.7',
     author='Bborie Park',
     author_email='bboriepark@granular.ag',
     url='www.granular.ag',
